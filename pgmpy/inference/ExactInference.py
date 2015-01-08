@@ -8,8 +8,11 @@ from pgmpy.factors.Factor import factor_product
 class VariableElimination(Inference):
     def query(self, variables, evidence=None, elimination_order=None):
         """
+        Query the model for conditional probability distribution (if evidence is given)
+        or marginal distribution over variables.
+
         Parameters
-        ----------
+        ----------  
         variables: list
             list of variables for which you want to compute the probability
         evidence: dict
