@@ -12,7 +12,7 @@ class VariableElimination(Inference):
         or marginal distribution over variables.
 
         Parameters
-        ----------  
+        ----------
         variables: list
             list of variables for which you want to compute the probability
         evidence: dict
@@ -82,6 +82,36 @@ class VariableElimination(Inference):
             query_var_factor[query_var] = phi
 
         return query_var_factor
+
+    def map_query(self, variables, evidence=None, elimination_order=None):
+        """
+        Do a conditional MAP query if evidence is given or a marginal MAP query
+        over the model.
+
+        Parameters
+        ----------
+        variables: list
+            list of variables for which you want to compute the probability
+        evidence: dict
+            a dict key, value pair as {var: state_of_var_observed}
+            None if no evidence
+        elimination_order: list
+            order of variable eliminations (if nothing is provided) order is
+            computed automatically
+
+        Examples
+        --------
+        >>> from pgmpy.inference import VariableElimination
+        >>> from pgmpy.models import BayesianModel
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> values = pd.DataFrame(np.random.randint(low=0, high=2, size=(1000, 5)),
+        ...                       columns=['A', 'B', 'C', 'D', 'E'])
+        >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
+        >>> model.fit(values)
+        >>> inference = VariableElimination(model)
+        >>> phi_query = inference.map_query(['A', 'B'])
+        """
 
 
 class BeliefPropagation(Inference):
