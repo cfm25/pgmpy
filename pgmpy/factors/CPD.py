@@ -76,7 +76,7 @@ class TabularCPD(Factor):
 
         variables = [variable]
 
-        if not isinstance(variable_card, int):
+        if not isinstance(variable_card, (int, np.int, np.int64)):
             raise TypeError("Event cardinality must be an integer")
         self.variable_card = variable_card
 
