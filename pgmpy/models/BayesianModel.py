@@ -533,10 +533,10 @@ class BayesianModel(DirectedGraph):
         """
         cpds_list = []
 
-        get_node_card = lambda _node, _data: _data.ix[:, _node].value_counts().shape[0]
-        node_card = {_node: get_node_card(_node, data) for _node in self.nodes()}
+        node_card = data.apply(lambda t: t.unique().shape[0], axis=0).to_dict()
 
         for node in self.nodes():
+            import pdb; pdb.set_trace()
             parents = self.get_parents(node)
             if not parents:
                 state_counts = data.ix[:, node].value_counts()
