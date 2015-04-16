@@ -409,18 +409,18 @@ class Factor:
         array([  9,  10,  11,  12,  13,  14,  15,  16,  17])
         """
         if card_cumprod is None:
-            card_cumprod = np.delete(np.concatenate((np.array([1]), np.cumprod(self.cardinality[::-1])), axis=1)[::-1], 0)
+            card_cumprod = np.delete(np.concatenate((np.array([1]),
+                                                     np.cumprod(self.cardinality[::-1])), axis=1)[::-1], 0)
 
         assignment = np.array(assignment)
         if -1 in assignment:
             indexes = np.where(assignment == -1)[0]
             cardinalities = self.cardinality[indexes]
-            array_to_return = np.array([])
-            for i in product(*[range(card) for card in cardinalities]):
-                temp_assignment = np.array(assignment)
-                temp_assignment[temp_assignment == -1] = i
-                array_to_return = np.append(array_to_return, np.sum(temp_assignment * card_cumprod))
-            return array_to_return.astype('int')
+
+            temp_assignment = np.tile(assignment, (np.product(cardinalities), 1))
+            array_to_replace = np.array(list(map(list, product(*[range(card) for card in cardinalities]))))
+            temp_assignment[temp_assignment == -1] = array_to_replace.ravel()
+            return np.sum(temp_assignment * card_cumprod, axis=1)
         else:
             return np.array([np.sum(assignment * card_cumprod)])
 
