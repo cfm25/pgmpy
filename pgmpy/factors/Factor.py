@@ -392,7 +392,7 @@ class Factor:
 
         Parameters
         ----------
-        assignment: array-like
+        assignment: numpy array
             An array for the states of each variable whose index is to be calculated.
             If any element is -1, that variable is ignored and all indexes for other variables
             are returned ignoring the variables corresponding to -1.
@@ -412,7 +412,6 @@ class Factor:
             card_cumprod = np.delete(np.concatenate((np.array([1]),
                                                      np.cumprod(self.cardinality[::-1])), axis=1)[::-1], 0)
 
-        assignment = np.array(assignment)
         if -1 in assignment:
             indexes = np.where(assignment == -1)[0]
             cardinalities = self.cardinality[indexes]
