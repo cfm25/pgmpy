@@ -198,9 +198,11 @@ class Factor:
         assign = np.array(factor.cardinality)
         assign[marginalize_index] = -1
         marginalized_values = []
+        card_cumprod = np.delete(np.concatenate((np.array([1]), np.cumprod(factor.cardinality[::-1])), axis=1)[::-1], 0)
+
         for i in product(*[range(index) for index in assign[assign != -1]]):
             assign[assign != -1] = i
-            marginalized_values.append(np.sum(factor.values[factor._index_for_assignment(assign)]))
+            marginalized_values.append(np.sum(factor.values[factor._index_for_assignment(assign, card_cumprod)]))
         factor.values = np.array(marginalized_values)
         for variable in variables:
             index = list(factor.variables.keys()).index(variable)
@@ -383,7 +385,7 @@ class Factor:
         else:
             return Factor(new_variables, new_card, new_values)
 
-    def _index_for_assignment(self, assignment):
+    def _index_for_assignment(self, assignment, card_cumprod=None):
         """
         Returns the index of values for a given assignment.
         If -1 passed for any variable, returns all the indexes ignoring variables corresponding to -1.
@@ -406,8 +408,10 @@ class Factor:
         >>> phi._index_for_assignment([1, -1, -1])
         array([  9,  10,  11,  12,  13,  14,  15,  16,  17])
         """
+        if card_cumprod is None:
+            card_cumprod = np.delete(np.concatenate((np.array([1]), np.cumprod(self.cardinality[::-1])), axis=1)[::-1], 0)
+
         assignment = np.array(assignment)
-        card_cumprod = np.delete(np.concatenate((np.array([1]), np.cumprod(self.cardinality[::-1])), axis=1)[::-1], 0)
         if -1 in assignment:
             indexes = np.where(assignment == -1)[0]
             cardinalities = self.cardinality[indexes]
