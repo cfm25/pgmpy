@@ -7,6 +7,7 @@ import numpy as np
 
 from pgmpy.exceptions import Exceptions
 from pgmpy.extern import tabulate
+from pgmpy.utils.mathext import cartesian
 
 
 class Factor:
@@ -77,6 +78,8 @@ class Factor:
         self.values = np.array(value, dtype=np.double)
         if not self.values.shape[0] == np.prod(self.cardinality):
             raise Exceptions.SizeError("Incompetant value array")
+
+        self._stride = np.cumprod(np.r_[self.cardinality[1:], 1][::-1])[::-1]
 
     def scope(self):
         """
@@ -407,18 +410,19 @@ class Factor:
         array([  9,  10,  11,  12,  13,  14,  15,  16,  17])
         """
         assignment = np.array(assignment)
-        card_cumprod = np.delete(np.concatenate((np.array([1]), np.cumprod(self.cardinality[::-1])), axis=1)[::-1], 0)
-        if -1 in assignment:
-            indexes = np.where(assignment == -1)[0]
-            cardinalities = self.cardinality[indexes]
-            array_to_return = np.array([])
-            for i in product(*[range(card) for card in cardinalities]):
-                temp_assignment = np.array(assignment)
-                temp_assignment[temp_assignment == -1] = i
-                array_to_return = np.append(array_to_return, np.sum(temp_assignment * card_cumprod))
-            return array_to_return.astype('int')
-        else:
-            return np.array([np.sum(assignment * card_cumprod)])
+
+        starcols = assignment == -1
+        fixedcols = np.logical_not(starcols)
+
+        if np.all(fixedcols):
+            return np.dot(self._stride, assignment)
+
+        cardinalities = self.cardinality[starcols]
+        assignments = np.zeros((np.prod(cardinalities), len(self.cardinality)), dtype=np.int)
+        assignments[:, np.nonzero(fixedcols)[0]] = assignment[fixedcols]
+        assignments[:, np.nonzero(starcols)[0]] = cartesian([np.arange(card) for card in cardinalities])
+
+        return np.dot(self._stride, assignments.T)
 
     def __str__(self):
         return self._str(html=False)
