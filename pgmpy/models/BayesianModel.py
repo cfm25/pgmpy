@@ -514,7 +514,7 @@ class BayesianModel(DirectedGraph):
         mm = self.to_markov_model()
         return mm.to_junction_tree()
 
-    def fit(self, data):
+    def fit(self, data, estimator='mle'):
         """
         Computes the CPD for each node from a given data in the form of a pandas dataframe.
 
@@ -523,6 +523,8 @@ class BayesianModel(DirectedGraph):
         data : pandas DataFrame object
                 A DataFrame object with column names same as the variable names of network
 
+        estimator: string (mle | bayesian)
+                Currently pgmpy supports Maximum Likelihood and Bayesian Estimator.
         Examples
         --------
         >>> import numpy as np
@@ -541,30 +543,31 @@ class BayesianModel(DirectedGraph):
         """
         cpds_list = []
 
-        get_node_card = lambda _node, _data: _data.ix[:, _node].value_counts().shape[0]
-        node_card = {_node: get_node_card(_node, data) for _node in self.nodes()}
+        if estimator == 'mle':
+            get_node_card = lambda _node, _data: _data.ix[:, _node].value_counts().shape[0]
+            node_card = {_node: get_node_card(_node, data) for _node in self.nodes()}
 
-        for node in self.nodes():
-            parents = self.get_parents(node)
-            if not parents:
-                state_counts = data.ix[:, node].value_counts()
-                cpd = TabularCPD(node, node_card[node],
-                                 state_counts.values[:, np.newaxis])
-                cpd.normalize()
-                cpds_list.append(cpd)
-            else:
-                parent_card = np.array([node_card[parent] for parent in parents])
-                var_card = node_card[node]
-                state_counts = data.groupby([node] + self.predecessors(node)).count()
-                values = state_counts.iloc[:, 0].reshape(var_card,
-                                                         np.product(parent_card))
-                cpd = TabularCPD(node, var_card, values,
-                                 evidence=parents,
-                                 evidence_card=parent_card.astype('int'))
-                cpd.normalize()
-                cpds_list.append(cpd)
+            for node in self.nodes():
+                parents = self.get_parents(node)
+                if not parents:
+                    state_counts = data.ix[:, node].value_counts()
+                    cpd = TabularCPD(node, node_card[node],
+                                     state_counts.values[:, np.newaxis])
+                    cpd.normalize()
+                    cpds_list.append(cpd)
+                else:
+                    parent_card = np.array([node_card[parent] for parent in parents])
+                    var_card = node_card[node]
+                    state_counts = data.groupby([node] + self.predecessors(node)).count()
+                    values = state_counts.iloc[:, 0].reshape(var_card,
+                                                             np.product(parent_card))
+                    cpd = TabularCPD(node, var_card, values,
+                                     evidence=parents,
+                                     evidence_card=parent_card.astype('int'))
+                    cpd.normalize()
+                    cpds_list.append(cpd)
 
-        self.add_cpds(*cpds_list)
+            self.add_cpds(*cpds_list)
 
     def predict(self, data):
         """
