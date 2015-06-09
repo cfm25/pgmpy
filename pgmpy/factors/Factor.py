@@ -4,6 +4,7 @@ from itertools import product, starmap
 from collections import OrderedDict, namedtuple
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from pgmpy.exceptions import Exceptions
 from pgmpy.extern import tabulate
@@ -77,8 +78,8 @@ class Factor:
         for variable, card in zip(variables, cardinality):
             self.variables[variable] = [State(variable, index) for index in range(card)]
         self.cardinality = np.array(cardinality)
-        self.values = np.array(value, dtype=np.float)
-        if not self.values.shape[0] == np.prod(self.cardinality):
+        self.values = csr_matrix(value, dtype=np.float)
+        if not self.values.shape[1] == np.prod(self.cardinality):
             raise Exceptions.SizeError("Incompetant value array")
 
     def scope(self):
@@ -206,8 +207,8 @@ class Factor:
         marginalized_values = []
         for i in product(*[range(index) for index in assign[assign != -1]]):
             assign[assign != -1] = i
-            marginalized_values.append(np.sum(factor.values[factor._index_for_assignment(assign)]))
-        factor.values = np.array(marginalized_values)
+            marginalized_values.append(factor.values[0, factor._index_for_assignment(assign)].sum())
+        factor.values = csr_matrix(marginalized_values, dtype=float)
         for variable in variables:
             index = list(factor.variables.keys()).index(variable)
             del(factor.variables[variable])
@@ -236,7 +237,7 @@ class Factor:
                 0.15151515,  0.16666667])
 
         """
-        values = self.values / np.sum(self.values)
+        values = self.values / self.values.sum()
         if inplace:
             self.values = values
         else:
@@ -283,7 +284,7 @@ class Factor:
         reduce_var_indexes[reduce_var_indexes == 0] = -1
         reduce_var_indexes[var_indexes] = reduce_states
         value_indexes = self._index_for_assignment(reduce_var_indexes)
-        new_values = self.values[value_indexes]
+        new_values = self.values[0, value_indexes]
 
         if inplace:
             new_variables = OrderedDict()
@@ -587,8 +588,9 @@ def _bivar_factor_operation(phi1, phi2, operation, n_jobs=1):
             else:
                 # TODO: @ankurankan Make this cleaner
                 indexes = np.array(list(map(list, product(*[range(card) for card in cardinality]))))
-                values = (phi1.values[np.sum(indexes[:, phi1_indexes] * phi1_cumprod, axis=1).ravel()] *
-                          phi2.values[np.sum(indexes[:, phi2_indexes] * phi2_cumprod, axis=1).ravel()])
+                import pdb; pdb.set_trace()
+                values = np.multiply(phi1.values[0, np.sum(indexes[:, phi1_indexes] * phi1_cumprod, axis=1).ravel()].data,
+                                     phi2.values[0, np.sum(indexes[:, phi2_indexes] * phi2_cumprod, axis=1).ravel()].data)
 
         elif operation == 'D':
             if use_joblib and n_jobs != 1:
