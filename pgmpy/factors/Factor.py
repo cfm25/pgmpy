@@ -609,6 +609,8 @@ def _bivar_factor_operation(phi1, phi2, operation, n_jobs=1):
                         # Ref Koller page 365, Fig 10.7
                         values.append(0)
 
+        values = np.array(values)
+        values[np.isnan(values)] = 0
         phi = Factor(variables, cardinality, values)
         return phi
     else:
