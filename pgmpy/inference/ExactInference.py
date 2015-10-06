@@ -74,13 +74,14 @@ class VariableElimination(Inference):
         Finn V. Jensen, Artificial Intelligence 113 (1999) 203–245
         """
         model = BayesianModel(self.edges)
-        return_nodes = []
+
+        independent_nodes = set()
         for query_var in query:
-            return_nodes.extend([node for node in self.nodes if (
+            independent_nodes.update([node for node in self.nodes if (
                 (node not in evidence_vars) and
                 model.is_active_trail(node, query_var, list(evidence_vars)))])
 
-        return return_nodes
+        return independent_nodes
 
     def _optimize_bayesian_elimination(self, query, evidence_vars):
         model = DirectedGraph(self.edges)
