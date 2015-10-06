@@ -8,9 +8,98 @@ import networkx as nx
 from pgmpy.inference import Inference
 from pgmpy.factors.Factor import factor_product
 from pgmpy.models import JunctionTree
-
+from pgmpy.base import DirectedGraph
 
 class VariableElimination(Inference):
+    def _barren_nodes(self, query, evidence_vars):
+        """
+        Return all barren variables, given the nodes to ignore (query and/or evidence nodes).
+        Barren variables are leaf variables not in query or evidence.
+
+        Parameters
+        ----------
+        variables: list, tuple, set (array-like)
+            list of variables to which are not to be considered.
+            In the case of Variable Elimination its variables + evidence.
+
+        Reference
+        ---------
+        A Simple Approach to Bayesian Network Computations, Zhang and Pool,
+        Proceedings of Canadian Artificial Intelligence, 1994.
+
+        Examples
+        --------
+        >>> from pgmpy.inference import VariableElimination
+        >>> from pgmpy.models import BayesianModel
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> values = pd.DataFrame(np.random.randint(low=0, high=2, size=(1000, 5)),
+        ...                       columns=['A', 'B', 'C', 'D', 'E'])
+        >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
+        >>> model.fit(values)
+        >>> inference = VariableElimination(model)
+        >>> barren_nodes = inference._barren_nodes(['A', 'B'])
+        {'D', 'E'}
+        """
+        variables = query + evidence_vars
+
+        model_copy = self.model.copy()
+        barren_vars = []
+        while True:
+            leaves = model_copy.get_leaves()
+            barren_nodes = [node for node in leaves if node not in variables]
+            barren_vars.extend(barren_nodes)
+            model_copy.remove_nodes_from(barren_nodes)
+            if not barren_nodes:
+                break
+        return barren_vars
+
+    def _independent_by_evidence(self, query, evidence_vars):
+        """
+        Return all the variables that doesn't have an active trail to any of the query variables,
+        given the evidence.
+
+        Parameters
+        ----------
+        query: string
+            The query variable.
+        evidence: dict
+            Evidences given for inference.
+
+        Reference
+        ---------
+        LAZY propagation: A junction tree inference algorithm based on lazy evaluation, Anders L. Madsen,
+        Finn V. Jensen, Artificial Intelligence 113 (1999) 203–245
+        """
+        return_nodes = []
+        for query_var in query:
+            return_nodes.extend([node for node in self.model.nodes() if (
+                (node not in evidence_vars) and
+                self.model.is_active_trail(node, query_var, list(evidence_vars)))])
+
+        return return_nodes
+
+    def _optimize_bayesian_elimination(self, query, evidence_vars):
+        model_copy = self.model.copy()
+        factors_copy = copy.deepcopy(self.working_factors)
+
+        nodes_to_remove = set()
+        # Barren Nodes
+        barren_nodes = self._barren_nodes(query, evidence_vars)
+        nodse_to_remove = nodes_to_remove.union(barren_nodes)
+
+        # Independent Nodes
+        independent_nodes = self._independent_by_evidence(query, evidence_vars)
+        nodes_to_remove = nodes_to_remove.union(independent_nodes)
+
+        # Removing nodes
+        for node in nodes_to_remove:
+            for var, factor_set in factors_copy.items():
+                factors_copy[var] = {factor for factor in factor_set if
+                                     set(factor.scope()).intersection(nodes_to_remove)}
+            del factors_copy[node]
+            model_copy.remove_node(node)
+
     def _variable_elimination(self, variables, operation, evidence=None, elimination_order=None):
         """
         Implementation of a generalized variable elimination.
