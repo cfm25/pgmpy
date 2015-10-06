@@ -110,8 +110,8 @@ class VariableElimination(Inference):
             variables that are not to be eliminated.
         operation: str ('marginalize' | 'maximize')
             The operation to do for eliminating the variable.
-        evidence: dict
-            a dict key, value pair as {var: state_of_var_observed}
+        evidence: list, array-like
+            list of tuples of the form (var_name, state).
             None if no evidence
         elimination_order: list, array-like
             list of variables representing the order in which they
@@ -180,10 +180,10 @@ class VariableElimination(Inference):
         """
         Parameters
         ----------
-        variables: list
+        variables: list, array-like
             list of variables for which you want to compute the probability
-        evidence: dict
-            a dict key, value pair as {var: state_of_var_observed}
+        evidence: list, array-like
+            list of tuples of the form (var_name, state)
             None if no evidence
         elimination_order: list
             order of variable eliminations (if nothing is provided) order is
@@ -211,10 +211,10 @@ class VariableElimination(Inference):
 
         Parameters
         ----------
-        variables: list
+        variables: list, array-like
             list of variables over which we want to compute the max-marginal.
-        evidence: dict
-            a dict key, value pair as {var: state_of_var_observed}
+        evidence: list, array-like
+            list of tuples of the form (var_name, state)
             None if no evidence
         elimination_order: list
             order of variable eliminations (if nothing is provided) order is
@@ -253,8 +253,8 @@ class VariableElimination(Inference):
         ----------
         variables: list
             list of variables over which we want to compute the max-marginal.
-        evidence: dict
-            a dict key, value pair as {var: state_of_var_observed}
+        evidence: list, array-like
+            list of tuples of the form (var_name, state)
             None if no evidence
         elimination_order: list
             order of variable eliminations (if nothing is provided) order is
