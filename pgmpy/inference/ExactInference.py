@@ -10,6 +10,7 @@ from pgmpy.factors.Factor import factor_product
 from pgmpy.models import JunctionTree, BayesianModel
 from pgmpy.base import DirectedGraph
 
+
 class VariableElimination(Inference):
     def _barren_nodes(self, query, evidence_vars):
         """
@@ -39,17 +40,18 @@ class VariableElimination(Inference):
         >>> model.fit(values)
         >>> inference = VariableElimination(model)
         >>> barren_nodes = inference._barren_nodes(['A', 'B'])
-        {'D', 'E'}
+        ['E', 'D']
         """
-        variables = query + evidence_vars
+        variables = set(query + evidence_vars)
 
-        model_copy = self.model.copy()
-        barren_vars = []
+        model = DirectedGraph(self.edges)
+        barren_vars = set()
+
         while True:
-            leaves = model_copy.get_leaves()
-            barren_nodes = [node for node in leaves if node not in variables]
-            barren_vars.extend(barren_nodes)
-            model_copy.remove_nodes_from(barren_nodes)
+            leaves = model.get_leaves()
+            barren_nodes = set(leaves) - variables
+            barren_vars.update(barren_nodes)
+            model.remove_nodes_from(barren_nodes)
             if not barren_nodes:
                 break
         return barren_vars
@@ -71,16 +73,17 @@ class VariableElimination(Inference):
         LAZY propagation: A junction tree inference algorithm based on lazy evaluation, Anders L. Madsen,
         Finn V. Jensen, Artificial Intelligence 113 (1999) 203–245
         """
+        model = BayesianModel(self.edges)
         return_nodes = []
         for query_var in query:
-            return_nodes.extend([node for node in self.model.nodes() if (
+            return_nodes.extend([node for node in self.nodes if (
                 (node not in evidence_vars) and
-                self.model.is_active_trail(node, query_var, list(evidence_vars)))])
+                model.is_active_trail(node, query_var, list(evidence_vars)))])
 
         return return_nodes
 
     def _optimize_bayesian_elimination(self, query, evidence_vars):
-        model_copy = self.model.copy()
+        model = DirectedGraph(self.edges)
         factors_copy = copy.deepcopy(self.working_factors)
 
         nodes_to_remove = set()
@@ -119,6 +122,14 @@ class VariableElimination(Inference):
             list of variables representing the order in which they
             are to be eliminated. If None order is computed automatically.
         """
+        evidence_vars = list(evidence.keys()) if evidence else []
+
+        if isinstance(self.model, BayesianModel) and operation == "marginalize":
+            optimized_model, optimized_factors = self._optimize_bayesian_elimination(
+                                                                    variables, evidence_vars)
+        else:
+            optimized_model = self.model,
+
         # Dealing with the case when variables is not provided.
         if not variables:
             all_factors = []
@@ -129,10 +140,6 @@ class VariableElimination(Inference):
         evidence_vars = [evi[0] for evi in evidence] if evidence else []
         self.working_factors = {node: {factor for factor in self.factors[node]}
                                 for node in self.factors}
-
-        if isinstance(self.model, BayesianModel) and operation == "marginalize":
-            evidence_vars = list(evidence.keys()) if evidence else []
-            self.reduced_model, self.reduced_factors = self._optimize_bayesian_elimination(variables, evidence_vars)
 
         eliminated_variables = set()
 
