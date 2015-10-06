@@ -127,23 +127,23 @@ class VariableElimination(Inference):
             return set(all_factors)
 
         evidence_vars = [evi[0] for evi in evidence] if evidence else []
+        self.working_factors = {node: {factor for factor in self.factors[node]}
+                                for node in self.factors}
 
         if isinstance(self.model, BayesianModel) and operation == "marginalize":
             evidence_vars = list(evidence.keys()) if evidence else []
             self.reduced_model, self.reduced_factors = self._optimize_bayesian_elimination(variables, evidence_vars)
 
         eliminated_variables = set()
-        working_factors = {node: {factor for factor in self.factors[node]}
-                           for node in self.factors}
 
         # Dealing with evidence. Reducing factors over it before VE is run.
         for evidence_var in evidence_vars:
-            for factor in working_factors[evidence_var]:
+            for factor in self.working_factors[evidence_var]:
                 factor_reduced = factor.reduce([(evidence_var, evidence[evidence_var])], inplace=False)
                 for var in factor_reduced.scope():
-                    working_factors[var].remove(factor)
-                    working_factors[var].add(factor_reduced)
-            del working_factors[evidence_var]
+                    self.working_factors[var].remove(factor)
+                    self.working_factors[var].add(factor_reduced)
+            del self.working_factors[evidence_var]
 
         # TODO: Modify it to find the optimal elimination order
         if not elimination_order:
@@ -159,18 +159,18 @@ class VariableElimination(Inference):
         for var in elimination_order:
             # Removing all the factors containing the variables which are
             # eliminated (as all the factors should be considered only once)
-            factors = [factor for factor in working_factors[var]
+            factors = [factor for factor in self.working_factors[var]
                        if not set(factor.variables).intersection(eliminated_variables)]
             phi = factor_product(*factors)
             phi = getattr(phi, operation)([var], inplace=False)
-            del working_factors[var]
+            del self.working_factors[var]
             for variable in phi.variables:
-                working_factors[variable].add(phi)
+                self.working_factors[variable].add(phi)
             eliminated_variables.add(var)
 
         final_distribution = set()
-        for node in working_factors:
-            factors = working_factors[node]
+        for node in self.working_factors:
+            factors = self.working_factors[node]
             for factor in factors:
                 if not set(factor.variables).intersection(eliminated_variables):
                     final_distribution.add(factor)
