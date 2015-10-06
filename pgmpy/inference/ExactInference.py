@@ -7,7 +7,7 @@ import networkx as nx
 
 from pgmpy.inference import Inference
 from pgmpy.factors.Factor import factor_product
-from pgmpy.models import JunctionTree
+from pgmpy.models import JunctionTree, BayesianModel
 from pgmpy.base import DirectedGraph
 
 class VariableElimination(Inference):
@@ -100,6 +100,8 @@ class VariableElimination(Inference):
             del factors_copy[node]
             model_copy.remove_node(node)
 
+        return model_copy, factors_copy
+
     def _variable_elimination(self, variables, operation, evidence=None, elimination_order=None):
         """
         Implementation of a generalized variable elimination.
@@ -124,28 +126,33 @@ class VariableElimination(Inference):
                 all_factors.extend(factor_li)
             return set(all_factors)
 
+        evidence_vars = [evi[0] for evi in evidence] if evidence else []
+
+        if isinstance(self.model, BayesianModel) and operation == "marginalize":
+            evidence_vars = list(evidence.keys()) if evidence else []
+            self.reduced_model, self.reduced_factors = self._optimize_bayesian_elimination(variables, evidence_vars)
+
         eliminated_variables = set()
         working_factors = {node: {factor for factor in self.factors[node]}
                            for node in self.factors}
 
         # Dealing with evidence. Reducing factors over it before VE is run.
-        if evidence:
-            for evidence_var in evidence:
-                for factor in working_factors[evidence_var]:
-                    factor_reduced = factor.reduce([(evidence_var, evidence[evidence_var])], inplace=False)
-                    for var in factor_reduced.scope():
-                        working_factors[var].remove(factor)
-                        working_factors[var].add(factor_reduced)
-                del working_factors[evidence_var]
+        for evidence_var in evidence_vars:
+            for factor in working_factors[evidence_var]:
+                factor_reduced = factor.reduce([(evidence_var, evidence[evidence_var])], inplace=False)
+                for var in factor_reduced.scope():
+                    working_factors[var].remove(factor)
+                    working_factors[var].add(factor_reduced)
+            del working_factors[evidence_var]
 
         # TODO: Modify it to find the optimal elimination order
         if not elimination_order:
             elimination_order = list(set(self.variables) -
                                      set(variables) -
-                                     set(evidence.keys() if evidence else []))
+                                     set(evidence_vars))
 
         elif any(var in elimination_order for var in
-                 set(variables).union(set(evidence.keys() if evidence else []))):
+                 set(variables).union(set(evidence_vars))):
             raise ValueError("Elimination order contains variables which are in"
                              " variables or evidence args")
 
