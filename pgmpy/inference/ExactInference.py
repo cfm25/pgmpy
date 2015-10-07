@@ -44,7 +44,7 @@ class VariableElimination(Inference):
         """
         variables = set(query + evidence_vars)
 
-        model = DirectedGraph(self.edges)
+        model = DirectedGraph(self.model.edges())
         barren_vars = set()
 
         while True:
@@ -77,7 +77,7 @@ class VariableElimination(Inference):
 
         independent_nodes = set()
         for query_var in query:
-            independent_nodes.update([node for node in self.nodes if (
+            independent_nodes.update([node for node in self.model.nodes() if (
                 (node not in evidence_vars) and
                 model.is_active_trail(node, query_var, list(evidence_vars)))])
 
@@ -185,7 +185,7 @@ class VariableElimination(Inference):
         for query_var in variables:
             phi = factor_product(*final_distribution)
             query_var_factor[query_var] = phi.marginalize(list(set(variables) - {query_var}),
-                                                          inplace=False).normalize(inplace=Falsel)
+                                                          inplace=False).normalize(inplace=False)
         return query_var_factor
 
     def query(self, variables, evidence=None, elimination_order=None):
