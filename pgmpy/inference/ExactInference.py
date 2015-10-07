@@ -73,7 +73,7 @@ class VariableElimination(Inference):
         LAZY propagation: A junction tree inference algorithm based on lazy evaluation, Anders L. Madsen,
         Finn V. Jensen, Artificial Intelligence 113 (1999) 203–245
         """
-        model = BayesianModel(self.edges)
+        model = BayesianModel(self.model.edges())
 
         independent_nodes = set()
         for query_var in query:
@@ -84,17 +84,17 @@ class VariableElimination(Inference):
         return independent_nodes
 
     def _optimize_bayesian_elimination(self, query, evidence_vars):
-        model = DirectedGraph(self.edges)
-        factors_copy = copy.deepcopy(self.working_factors)
+        model = DirectedGraph(self.model.edges())
+        factors_copy = copy.deepcopy(self.factors)
 
         nodes_to_remove = set()
         # Barren Nodes
         barren_nodes = self._barren_nodes(query, evidence_vars)
-        nodse_to_remove = nodes_to_remove.union(barren_nodes)
+        nodes_to_remove.update(barren_nodes)
 
         # Independent Nodes
         independent_nodes = self._independent_by_evidence(query, evidence_vars)
-        nodes_to_remove = nodes_to_remove.union(independent_nodes)
+        nodes_to_remove.update(independent_nodes)
 
         # Removing nodes
         for node in nodes_to_remove:
@@ -102,9 +102,9 @@ class VariableElimination(Inference):
                 factors_copy[var] = {factor for factor in factor_set if
                                      set(factor.scope()).intersection(nodes_to_remove)}
             del factors_copy[node]
-            model_copy.remove_node(node)
+            model.remove_node(node)
 
-        return model_copy, factors_copy
+        return model, factors_copy
 
     def _variable_elimination(self, variables, operation, evidence=None, elimination_order=None):
         """
@@ -125,11 +125,11 @@ class VariableElimination(Inference):
         """
         evidence_vars = list(evidence.keys()) if evidence else []
 
+        working_factors = {node: {factor for factor in self.factors[node]}
+                           for node in self.factors}
+
         if isinstance(self.model, BayesianModel) and operation == "marginalize":
-            optimized_model, optimized_factors = self._optimize_bayesian_elimination(
-                                                                    variables, evidence_vars)
-        else:
-            optimized_model = self.model,
+            model, working_factors = self._optimize_bayesian_elimination(variables, evidence_vars)
 
         # Dealing with the case when variables is not provided.
         if not variables:
@@ -139,19 +139,17 @@ class VariableElimination(Inference):
             return set(all_factors)
 
         evidence_vars = [evi[0] for evi in evidence] if evidence else []
-        self.working_factors = {node: {factor for factor in self.factors[node]}
-                                for node in self.factors}
 
         eliminated_variables = set()
 
         # Dealing with evidence. Reducing factors over it before VE is run.
         for evidence_var in evidence_vars:
-            for factor in self.working_factors[evidence_var]:
+            for factor in working_factors[evidence_var]:
                 factor_reduced = factor.reduce([(evidence_var, evidence[evidence_var])], inplace=False)
                 for var in factor_reduced.scope():
-                    self.working_factors[var].remove(factor)
-                    self.working_factors[var].add(factor_reduced)
-            del self.working_factors[evidence_var]
+                    working_factors[var].remove(factor)
+                    working_factors[var].add(factor_reduced)
+            del working_factors[evidence_var]
 
         # TODO: Modify it to find the optimal elimination order
         if not elimination_order:
@@ -167,18 +165,18 @@ class VariableElimination(Inference):
         for var in elimination_order:
             # Removing all the factors containing the variables which are
             # eliminated (as all the factors should be considered only once)
-            factors = [factor for factor in self.working_factors[var]
+            factors = [factor for factor in working_factors[var]
                        if not set(factor.variables).intersection(eliminated_variables)]
             phi = factor_product(*factors)
             phi = getattr(phi, operation)([var], inplace=False)
-            del self.working_factors[var]
+            del working_factors[var]
             for variable in phi.variables:
-                self.working_factors[variable].add(phi)
+                working_factors[variable].add(phi)
             eliminated_variables.add(var)
 
         final_distribution = set()
-        for node in self.working_factors:
-            factors = self.working_factors[node]
+        for node in working_factors:
+            factors = working_factors[node]
             for factor in factors:
                 if not set(factor.variables).intersection(eliminated_variables):
                     final_distribution.add(factor)
@@ -186,9 +184,8 @@ class VariableElimination(Inference):
         query_var_factor = {}
         for query_var in variables:
             phi = factor_product(*final_distribution)
-            query_var_factor[query_var] = phi.marginalize(list(set(variables) -
-                                                               set([query_var])),
-                                                          inplace=False).normalize(inplace=False)
+            query_var_factor[query_var] = phi.marginalize(list(set(variables) - {query_var}),
+                                                          inplace=False).normalize(inplace=Falsel)
         return query_var_factor
 
     def query(self, variables, evidence=None, elimination_order=None):
