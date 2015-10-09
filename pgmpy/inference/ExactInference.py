@@ -12,7 +12,19 @@ from pgmpy.base import DirectedGraph
 
 
 class VariableElimination(Inference):
-    def _barren_nodes(self, query, evidence_vars):
+    def _remove_nodes(self, nodes_to_remove):
+        for node in nodes_to_remove:
+            for var, factor_set in factors.items():
+                factors[var] = {factor for factor in factor_set if
+                                     set(factor.scope()).intersection(nodes_to_remove)}
+            del factors[node]
+            model.remove_node(node)
+
+        return model, factors
+
+        pass
+
+    def _barren_nodes(self, variables, evidence_vars):
         """
         Return all barren variables, given the nodes to ignore (query and/or evidence nodes).
         Barren variables are leaf variables not in query or evidence.
@@ -39,24 +51,18 @@ class VariableElimination(Inference):
         >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
         >>> model.fit(values)
         >>> inference = VariableElimination(model)
-        >>> barren_nodes = inference._barren_nodes(['A', 'B'])
-        ['E', 'D']
+        >>> barren_nodes = inference._barren_nodes(['A', 'B'], [])
+        {'D', 'E'}
         """
-        variables = set(query + evidence_vars)
+        relevant_vars = set(variables + evidence_vars)
 
-        model = DirectedGraph(self.model.edges())
-        barren_vars = set()
+        ancestor_nodes = set()
+        for var in relevant_vars:
+            ancestor_nodes.update(nx.ancestors(self.model, var))
 
-        while True:
-            leaves = model.get_leaves()
-            barren_nodes = set(leaves) - variables
-            barren_vars.update(barren_nodes)
-            model.remove_nodes_from(barren_nodes)
-            if not barren_nodes:
-                break
-        return barren_vars
+        return set(self.model.nodes()) - ancestor_nodes - relevant_vars
 
-    def _independent_by_evidence(self, query, evidence_vars):
+    def _independent_by_evidence(self, variables, evidence_vars):
         """
         Return all the variables that doesn't have an active trail to any of the query variables,
         given the evidence.
@@ -76,35 +82,37 @@ class VariableElimination(Inference):
         model = BayesianModel(self.model.edges())
 
         independent_nodes = set()
-        for query_var in query:
+        for query_var in variables:
             independent_nodes.update([node for node in self.model.nodes() if (
                 (node not in evidence_vars) and
                 model.is_active_trail(node, query_var, list(evidence_vars)))])
 
-        return independent_nodes
+        return independent_nodes - set(self.variables)
 
-    def _optimize_bayesian_elimination(self, query, evidence_vars):
-        model = DirectedGraph(self.model.edges())
-        factors_copy = copy.deepcopy(self.factors)
+    def _optimize_bayesian_elimination(self, variables, evidence_vars):
+        model = DirectedGraph(self.working_model.edges())
+        factors = {node: {factor for factor in self.working_factors[node]}
+                   for node in self.working_factors}
 
-        nodes_to_remove = set()
         # Barren Nodes
-        barren_nodes = self._barren_nodes(query, evidence_vars)
-        nodes_to_remove.update(barren_nodes)
+        barren_nodes = self._barren_nodes(variables, evidence_vars)
+        self.working_model, self.working_factors = self._remove_nodes(barren_nodes)
 
-        # Independent Nodes
-        independent_nodes = self._independent_by_evidence(query, evidence_vars)
-        nodes_to_remove.update(independent_nodes)
+        # # Independent Nodes
+        # independent_nodes = self._independent_by_evidence(variables, evidence_vars)
+        # self.working_model, self.working_factors = self._remove_nodes(independent_nodes)
 
         # Removing nodes
-        for node in nodes_to_remove:
-            for var, factor_set in factors_copy.items():
-                factors_copy[var] = {factor for factor in factor_set if
-                                     set(factor.scope()).intersection(nodes_to_remove)}
-            del factors_copy[node]
-            model.remove_node(node)
+        import pdb; pdb.set_trace()
 
-        return model, factors_copy
+    def _reduce_over_evidence(self):
+        for evidence_var in self.evidence_vars:
+            for factor in self.working_factors[evidence_var]:
+                factor_reduced = factor.reduce([(evidence_var, self.evidence_vars[evidence_var])], inplace=False)
+                for var in factor_reduced.scope():
+                    self.working_factors[var].remove(factor)
+                    self.working_factors[var].add(factor_reduced)
+            del self.working_factors[evidence_var]
 
     def _variable_elimination(self, variables, operation, evidence=None, elimination_order=None):
         """
@@ -123,13 +131,18 @@ class VariableElimination(Inference):
             list of variables representing the order in which they
             are to be eliminated. If None order is computed automatically.
         """
-        evidence_vars = list(evidence.keys()) if evidence else []
+        self.variables = variables
+        self.operation = operation
+        self.evidence_vars = list(evidence.keys()) if evidence else []
+        self.elimination_order = elimination_order
+        self.working_factors = {node: {factor for factor in self.factors[node]}
+                                for node in self.factors}
+        self.working_model = copy.deepcopy(self.model)
 
-        working_factors = {node: {factor for factor in self.factors[node]}
-                           for node in self.factors}
+        if isinstance(self.working_model, BayesianModel) and operation == "marginalize":
+            self.working_model, self.working_factors = self._optimize_bayesian_elimination()
 
-        if isinstance(self.model, BayesianModel) and operation == "marginalize":
-            model, working_factors = self._optimize_bayesian_elimination(variables, evidence_vars)
+        import pdb; pdb.set_trace()
 
         # Dealing with the case when variables is not provided.
         if not variables:
@@ -144,16 +157,16 @@ class VariableElimination(Inference):
 
         # Dealing with evidence. Reducing factors over it before VE is run.
         for evidence_var in evidence_vars:
-            for factor in working_factors[evidence_var]:
+            for factor in self.working_factors[evidence_var]:
                 factor_reduced = factor.reduce([(evidence_var, evidence[evidence_var])], inplace=False)
                 for var in factor_reduced.scope():
-                    working_factors[var].remove(factor)
-                    working_factors[var].add(factor_reduced)
-            del working_factors[evidence_var]
+                    self.working_factors[var].remove(factor)
+                    self.working_factors[var].add(factor_reduced)
+            del self.working_factors[evidence_var]
 
         # TODO: Modify it to find the optimal elimination order
         if not elimination_order:
-            elimination_order = list(set(self.variables) -
+            elimination_order = list(set(self.working_model.nodes()) -
                                      set(variables) -
                                      set(evidence_vars))
 
@@ -165,18 +178,18 @@ class VariableElimination(Inference):
         for var in elimination_order:
             # Removing all the factors containing the variables which are
             # eliminated (as all the factors should be considered only once)
-            factors = [factor for factor in working_factors[var]
+            factors = [factor for factor in self.working_factors[var]
                        if not set(factor.variables).intersection(eliminated_variables)]
             phi = factor_product(*factors)
             phi = getattr(phi, operation)([var], inplace=False)
-            del working_factors[var]
+            del self.working_factors[var]
             for variable in phi.variables:
-                working_factors[variable].add(phi)
+                self.working_factors[variable].add(phi)
             eliminated_variables.add(var)
 
         final_distribution = set()
-        for node in working_factors:
-            factors = working_factors[node]
+        for node in self.working_factors:
+            factors = self.working_factors[node]
             for factor in factors:
                 if not set(factor.variables).intersection(eliminated_variables):
                     final_distribution.add(factor)
