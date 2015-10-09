@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import itertools
 import copy
+from collections import defaultdict
 
 import numpy as np
 import networkx as nx
@@ -8,22 +9,9 @@ import networkx as nx
 from pgmpy.inference import Inference
 from pgmpy.factors.Factor import factor_product
 from pgmpy.models import JunctionTree, BayesianModel
-from pgmpy.base import DirectedGraph
 
 
 class VariableElimination(Inference):
-    def _remove_nodes(self, nodes_to_remove):
-        for node in nodes_to_remove:
-            for var, factor_set in factors.items():
-                factors[var] = {factor for factor in factor_set if
-                                     set(factor.scope()).intersection(nodes_to_remove)}
-            del factors[node]
-            model.remove_node(node)
-
-        return model, factors
-
-        pass
-
     def _barren_nodes(self, variables, evidence_vars):
         """
         Return all barren variables, given the nodes to ignore (query and/or evidence nodes).
@@ -79,31 +67,34 @@ class VariableElimination(Inference):
         LAZY propagation: A junction tree inference algorithm based on lazy evaluation, Anders L. Madsen,
         Finn V. Jensen, Artificial Intelligence 113 (1999) 203–245
         """
-        model = BayesianModel(self.model.edges())
-
-        independent_nodes = set()
-        for query_var in variables:
-            independent_nodes.update([node for node in self.model.nodes() if (
-                (node not in evidence_vars) and
-                model.is_active_trail(node, query_var, list(evidence_vars)))])
-
-        return independent_nodes - set(self.variables)
+        reachable_nodes = self.model.active_trail_nodes(variables, observed=evidence_vars)
+        non_reachable_nodes = set(self.model.nodes()) - reachable_nodes - set(evidence_vars)
+        return non_reachable_nodes
 
     def _optimize_bayesian_elimination(self, variables, evidence_vars):
-        model = DirectedGraph(self.working_model.edges())
-        factors = {node: {factor for factor in self.working_factors[node]}
-                   for node in self.working_factors}
+        model = copy.deepcopy(self.model)
+        factors = {node: {factor for factor in self.factors[node]}
+                   for node in self.factors}
 
         # Barren Nodes
         barren_nodes = self._barren_nodes(variables, evidence_vars)
-        self.working_model, self.working_factors = self._remove_nodes(barren_nodes)
+        model.remove_nodes_from(barren_nodes)
 
-        # # Independent Nodes
-        # independent_nodes = self._independent_by_evidence(variables, evidence_vars)
-        # self.working_model, self.working_factors = self._remove_nodes(independent_nodes)
+        # Independent Nodes
+        independent_nodes = self._independent_by_evidence(variables, evidence_vars)
+        model.remove_nodes_from(independent_nodes)
 
-        # Removing nodes
-        import pdb; pdb.set_trace()
+        # Constructing factor dict
+        factors = defaultdict(list)
+
+        for node in model.nodes():
+            cpd = model.get_cpds(node)
+            cpd_as_factor = cpd.to_factor()
+
+            for var in cpd.variables:
+                factors[var].append(cpd_as_factor)
+
+        return model, factors
 
     def _reduce_over_evidence(self):
         for evidence_var in self.evidence_vars:

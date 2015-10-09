@@ -112,7 +112,25 @@ class BayesianModel(DirectedGraph):
                  'Loops are not allowed. Adding the edge from (%s->%s) forms a loop.' % (u, v))
         else:
             super(BayesianModel, self).add_edge(u, v, **kwargs)
-        
+
+    def remove_node(self, node):
+        affected_nodes = [v for u, v in self.edges() if u == node]
+        for node in affected_nodes:
+            node_cpd = self.get_cpds(node=node)
+            if node_cpd:
+                # TODO: Fix this hackish solution
+                new_cpd_values = node_cpd.marginalize([node], inplace=True).values
+
+
+                self.remove_cpds(node_cpd)
+
+        if self.get_cpds(node=node):
+            self.remove_cpds(node)
+
+    def remove_nodes_from(self, nodes):
+        for node in nodes:
+            self.remove_node(node)
+
     def add_cpds(self, *cpds):
         """
         Add CPD (Conditional Probability Distribution) to the Bayesian Model.
