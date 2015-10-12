@@ -117,7 +117,7 @@ class TabularCPD(Factor):
         if values.ndim != 2:
             raise TypeError("Values must be a 2D list/array")
 
-        super().__init__(variables, cardinality, values.flatten('C'))
+        super(TabularCPD, self).__init__(variables, cardinality, values.flatten('C'))
 
     def __repr__(self):
         var_str = '<TabularCPD representing P({var}:{card}'.format(
@@ -319,12 +319,7 @@ class TabularCPD(Factor):
         array([[ 0.7,  0.6],
                [ 0.3,  0.4]])
         """
-        if inplace:
-            tabular_cpd = self
-        else:
-            tabular_cpd = TabularCPD(self.variable, self.variable_card,
-                                     self.get_cpd(), self.evidence,
-                                     self.evidence_card)
+        tabular_cpd = self if inplace else self.copy()
 
         super(TabularCPD, tabular_cpd).reduce(values)
         tabular_cpd.normalize()
