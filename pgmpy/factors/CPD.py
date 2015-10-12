@@ -259,6 +259,9 @@ class TabularCPD(Factor):
         array([[ 0.48484848,  0.4       ],
                [ 0.51515152,  0.6       ]])
         """
+        if self.variable in variables:
+            raise ValueError("Can't marginalize on the variable on which CPD is defined")
+
         if inplace:
             tabular_cpd = self
         else:
