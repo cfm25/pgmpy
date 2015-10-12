@@ -224,14 +224,8 @@ class TabularCPD(Factor):
         array([[ 0.63636364,  0.33333333,  0.6       ,  0.2       ],
                [ 0.36363636,  0.66666667,  0.4       ,  0.8       ]])
         """
-        if inplace:
-            tabular_cpd = self
-        else:
-            tabular_cpd = TabularCPD(self.variable, self.variable_card,
-                                     self.get_cpd(), self.evidence,
-                                     self.evidence_card)
-        cpd = tabular_cpd.get_cpd()
-        tabular_cpd.values = (cpd / cpd.sum(axis=0)).flatten('C')
+        tabular_cpd = self if inplace else self.copy()
+        tabular_cpd.values = (tabular_cpd.values / tabular_cpd.values.sum(axis=0))
 
         if not inplace:
             return tabular_cpd
