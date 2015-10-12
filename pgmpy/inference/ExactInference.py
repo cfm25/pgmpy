@@ -131,9 +131,7 @@ class VariableElimination(Inference):
         self.working_model = copy.deepcopy(self.model)
 
         if isinstance(self.working_model, BayesianModel) and operation == "marginalize":
-            self.working_model, self.working_factors = self._optimize_bayesian_elimination()
-
-        import pdb; pdb.set_trace()
+            self.working_model, self.working_factors = self._optimize_bayesian_elimination(variables, self.evidence_vars)
 
         # Dealing with the case when variables is not provided.
         if not variables:
