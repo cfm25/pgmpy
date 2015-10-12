@@ -261,6 +261,17 @@ class TabularCPD(Factor):
         super(TabularCPD, tabular_cpd).marginalize(variables)
         tabular_cpd.normalize()
 
+        # TODO: Find an elegant way to do this
+        # Changes in evidence and evidence_card
+        for var in variables:
+            index_to_delete = self.evidence.index(var)
+            self.evidence.pop(index_to_delete)
+            self.evidence_card.pop(index_to_delete)
+
+        if not self.evidence:
+            self.evidence = None
+            self.evidence_card = None
+
         if not inplace:
             return tabular_cpd
 
