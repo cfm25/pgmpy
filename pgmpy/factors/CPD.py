@@ -240,8 +240,8 @@ class TabularCPD(Factor):
         """
         Modifies the cpd table with marginalized values.
 
-        Paramters
-        ---------
+        Parameters
+        ----------
         variables: string, list-type
             name of variable to be marginalized
         inplace: boolean
@@ -262,18 +262,34 @@ class TabularCPD(Factor):
         if self.variable in variables:
             raise ValueError("Can't marginalize on the variable on which CPD is defined")
 
-        if inplace:
-            tabular_cpd = self
-        else:
-            tabular_cpd = TabularCPD(self.variable, self.variable_card,
-                                     self.get_cpd(), self.evidence,
-                                     self.evidence_card)
+        tabular_cpd = self if inplace else self.copy()
 
         super(TabularCPD, tabular_cpd).marginalize(variables)
         tabular_cpd.normalize()
 
         if not inplace:
             return tabular_cpd
+
+    def copy(self):
+        """
+        Returns a copy of the TabularCPD object.
+
+        Examples
+        --------
+        >>> from pgmpy.factors import TabularCPD
+        >>> cpd = TabularCPD('grade', 2,
+        ...                  [[0.7, 0.6, 0.6, 0.2],[0.3, 0.4, 0.4, 0.8]],
+        ...                  ['intel', 'diff'], [2, 2])
+        >>> copy = cpd.copy()
+        >>> copy.variable
+        'grade'
+        >>> copy.variable_card
+        2
+        >>> copy.evidence
+        ['intel', 'diff']
+        """
+        return TabularCPD(self.variable, self.variable_card, self.get_cpd(),
+                          self.evidence, self.evidence_card)
 
     def reduce(self, values, inplace=True):
         """
