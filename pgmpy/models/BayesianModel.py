@@ -118,14 +118,13 @@ class BayesianModel(DirectedGraph):
         for node in affected_nodes:
             node_cpd = self.get_cpds(node=node)
             if node_cpd:
-                # TODO: Fix this hackish solution
-                new_cpd_values = node_cpd.marginalize([node], inplace=True).values
-
-
+                new_cpd = node_cpd.marginalize([node], inplace=True)
                 self.remove_cpds(node_cpd)
+                self.add_cpds(new_cpd)
 
         if self.get_cpds(node=node):
             self.remove_cpds(node)
+        super(BayesianModel, self).remove_node(node)
 
     def remove_nodes_from(self, nodes):
         for node in nodes:
