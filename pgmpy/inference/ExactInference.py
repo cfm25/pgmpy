@@ -12,7 +12,7 @@ from pgmpy.models import JunctionTree, BayesianModel
 
 
 class VariableElimination(Inference):
-    def _barren_nodes(self, variables, evidence_vars):
+    def _barren_nodes(self, model, variables, evidence_vars):
         """
         Return all barren variables, given the nodes to ignore (query and/or evidence nodes).
         Barren variables are leaf variables not in query or evidence.
@@ -42,15 +42,15 @@ class VariableElimination(Inference):
         >>> barren_nodes = inference._barren_nodes(['A', 'B'], [])
         {'D', 'E'}
         """
-        relevant_vars = set(variables + evidence_vars)
+        relevant_vars = set([variables] + evidence_vars)
 
         ancestor_nodes = set()
         for var in relevant_vars:
-            ancestor_nodes.update(nx.ancestors(self.model, var))
+            ancestor_nodes.update(nx.ancestors(model, var))
 
-        return set(self.model.nodes()) - ancestor_nodes - relevant_vars
+        return set(model.nodes()) - ancestor_nodes - relevant_vars
 
-    def _independent_by_evidence(self, variables, evidence_vars):
+    def _independent_by_evidence(self, model, variables, evidence_vars):
         """
         Return all the variables that doesn't have an active trail to any of the query variables,
         given the evidence.
@@ -67,8 +67,8 @@ class VariableElimination(Inference):
         LAZY propagation: A junction tree inference algorithm based on lazy evaluation, Anders L. Madsen,
         Finn V. Jensen, Artificial Intelligence 113 (1999) 203–245
         """
-        reachable_nodes = self.model.active_trail_nodes(variables, observed=evidence_vars)
-        non_reachable_nodes = set(self.model.nodes()) - reachable_nodes - set(evidence_vars)
+        reachable_nodes = model.active_trail_nodes(variables, observed=evidence_vars)
+        non_reachable_nodes = set(model.nodes()) - reachable_nodes - set(evidence_vars)
         return non_reachable_nodes
 
     def _optimize_bayesian_elimination(self, variables, evidence_vars):
@@ -77,11 +77,11 @@ class VariableElimination(Inference):
                    for node in self.factors}
 
         # Barren Nodes
-        barren_nodes = self._barren_nodes(variables, evidence_vars)
+        barren_nodes = self._barren_nodes(model, variables, evidence_vars)
         model.remove_nodes_from(barren_nodes)
 
         # Independent Nodes
-        independent_nodes = self._independent_by_evidence(variables, evidence_vars)
+        independent_nodes = self._independent_by_evidence(model, variables, evidence_vars)
         model.remove_nodes_from(independent_nodes)
 
         # Constructing factor dict
@@ -94,6 +94,7 @@ class VariableElimination(Inference):
             for var in cpd.variables:
                 factors[var].append(cpd_as_factor)
 
+        factors = {node: {factor for factor in factors[node]} for node in factors}
         return model, factors
 
     def _reduce_over_evidence(self):
@@ -156,7 +157,7 @@ class VariableElimination(Inference):
         # TODO: Modify it to find the optimal elimination order
         if not elimination_order:
             elimination_order = list(set(self.working_model.nodes()) -
-                                     set(variables) -
+                                     set([variables]) -
                                      set(evidence_vars))
 
         elif any(var in elimination_order for var in
@@ -184,9 +185,9 @@ class VariableElimination(Inference):
                     final_distribution.add(factor)
 
         query_var_factor = {}
-        for query_var in variables:
+        for query_var in [variables]:
             phi = factor_product(*final_distribution)
-            query_var_factor[query_var] = phi.marginalize(list(set(variables) - {query_var}),
+            query_var_factor[query_var] = phi.marginalize(list(set([variables]) - {query_var}),
                                                           inplace=False).normalize(inplace=False)
         return query_var_factor
 
