@@ -106,24 +106,27 @@ class VariableElimination(Inference):
                     self.working_factors[var].add(factor_reduced)
             del self.working_factors[evidence_var]
 
-    def _variable_elimination(self, variables, operation, evidence=None, elimination_order=None):
+    def _variable_elimination(self, variable, operation, evidence=None, elimination_order=None):
         """
         Implementation of a generalized variable elimination.
 
         Parameters
         ----------
-        variables: list, array-like
-            variables that are not to be eliminated.
+        variables: variable name (can be any hashable python object)
+            Variable that is not to be eliminated.
+
         operation: str ('marginalize' | 'maximize')
             The operation to do for eliminating the variable.
+
         evidence: list, array-like
             list of tuples of the form (var_name, state).
             None if no evidence
+
         elimination_order: list, array-like
             list of variables representing the order in which they
             are to be eliminated. If None order is computed automatically.
         """
-        self.variables = variables
+        self.variables = variable
         self.operation = operation
         self.evidence_vars = list(evidence.keys()) if evidence else []
         self.elimination_order = elimination_order
@@ -135,7 +138,7 @@ class VariableElimination(Inference):
             self.working_model, self.working_factors = self._optimize_bayesian_elimination(variables, self.evidence_vars)
 
         # Dealing with the case when variables is not provided.
-        if not variables:
+        if not variable:
             all_factors = []
             for factor_li in self.factors.values():
                 all_factors.extend(factor_li)
@@ -185,9 +188,9 @@ class VariableElimination(Inference):
                     final_distribution.add(factor)
 
         query_var_factor = {}
-        for query_var in [variables]:
+        for query_var in [variable]:
             phi = factor_product(*final_distribution)
-            query_var_factor[query_var] = phi.marginalize(list(set([variables]) - {query_var}),
+            query_var_factor[query_var] = phi.marginalize(list(set([variable]) - {query_var}),
                                                           inplace=False).normalize(inplace=False)
         return query_var_factor
 
@@ -197,12 +200,15 @@ class VariableElimination(Inference):
         ----------
         variables: list, array-like
             list of variables for which you want to compute the probability
+
         evidence: list, array-like
             list of tuples of the form (var_name, state)
             None if no evidence
+
         elimination_order: list
-            order of variable eliminations (if nothing is provided) order is
-            computed automatically
+            list of variable names representing the order in which they have to be
+            eliminated.
+            If None, elimination order will be computed automatically.
 
         Examples
         --------
@@ -220,20 +226,22 @@ class VariableElimination(Inference):
         return self._variable_elimination(variables, 'marginalize',
                                           evidence=evidence, elimination_order=elimination_order)
 
-    def max_marginal(self, variables=None, evidence=None, elimination_order=None):
+    def max_marginal(self, variable=None, evidence=None, elimination_order=None):
         """
         Computes the max-marginal over the variables given the evidence.
 
         Parameters
         ----------
-        variables: list, array-like
-            list of variables over which we want to compute the max-marginal.
+        variable: variable name (can be any hashable python object)
+            Variable over which we want to compute the max-marginal.
+
         evidence: list, array-like
             list of tuples of the form (var_name, state)
             None if no evidence
+
         elimination_order: list
-            order of variable eliminations (if nothing is provided) order is
-            computed automatically
+            list of variable names is the order in which variables are to be eliminated.
+            If None, elimination order will be computed automatically.
 
         Examples
         --------
@@ -248,9 +256,9 @@ class VariableElimination(Inference):
         >>> inference = VariableElimination(model)
         >>> phi_query = inference.max_marginal(['A', 'B'])
         """
-        if not variables:
-            variables = []
-        final_distribution = self._variable_elimination(variables, 'maximize',
+        if not variable:
+            variable = []
+        final_distribution = self._variable_elimination(variable, 'maximize',
                                                         evidence=evidence,
                                                         elimination_order=elimination_order)
 
@@ -266,11 +274,13 @@ class VariableElimination(Inference):
 
         Parameters
         ----------
-        variables: list
-            list of variables over which we want to compute the max-marginal.
+        variable: list
+            Variable over which we want to compute the max-marginal.
+
         evidence: list, array-like
             list of tuples of the form (var_name, state)
             None if no evidence
+
         elimination_order: list
             order of variable eliminations (if nothing is provided) order is
             computed automatically
