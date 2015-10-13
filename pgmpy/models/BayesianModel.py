@@ -654,3 +654,12 @@ class BayesianModel(DirectedGraph):
 
     def is_imap(self, independence):
         pass
+
+    def copy(self):
+        copy = BayesianModel(self.edges())
+        if self.cpds:
+            cpd_copy = []
+            for cpd in self.cpds:
+                cpd_copy.append(cpd.copy())
+            copy.add_cpds(*cpd_copy)
+        return copy
