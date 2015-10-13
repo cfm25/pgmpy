@@ -135,7 +135,7 @@ class VariableElimination(Inference):
         self.working_model = copy.deepcopy(self.model)
 
         if isinstance(self.working_model, BayesianModel) and operation == "marginalize":
-            self.working_model, self.working_factors = self._optimize_bayesian_elimination(variables, self.evidence_vars)
+            self.working_model, self.working_factors = self._optimize_bayesian_elimination(variable, self.evidence_vars)
 
         # Dealing with the case when variables is not provided.
         if not variable:
@@ -160,11 +160,11 @@ class VariableElimination(Inference):
         # TODO: Modify it to find the optimal elimination order
         if not elimination_order:
             elimination_order = list(set(self.working_model.nodes()) -
-                                     set([variables]) -
+                                     set([variable]) -
                                      set(evidence_vars))
 
         elif any(var in elimination_order for var in
-                 set(variables).union(set(evidence_vars))):
+                 set(variable).union(set(evidence_vars))):
             raise ValueError("Elimination order contains variables which are in"
                              " variables or evidence args")
 
