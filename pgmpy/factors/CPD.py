@@ -320,6 +320,9 @@ class TabularCPD(Factor):
         array([[ 0.7,  0.6],
                [ 0.3,  0.4]])
         """
+        if self.variable in [var for var, state in values]:
+            raise ValueError("Can't reduce on the variable on which CPD is defined")
+
         tabular_cpd = self if inplace else self.copy()
 
         super(TabularCPD, tabular_cpd).reduce(values)
