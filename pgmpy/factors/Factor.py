@@ -1,19 +1,20 @@
-import functools
-from itertools import product
-from collections import namedtuple
+from __future__ import division
 
-from collections import OrderedDict, namedtuple
-from numbers import Number
+from itertools import product
+
+from collections import namedtuple
 
 import numpy as np
 
 from pgmpy.extern import tabulate
+from pgmpy.extern import six
+from pgmpy.extern.six.moves import map, range, reduce, zip
 
 
 State = namedtuple('State', ['var', 'state'])
 
 
-class Factor:
+class Factor(object):
     """
     Base class for Factor.
 
@@ -35,7 +36,7 @@ class Factor:
         assignments to the index of the row vector in the value field:
 
         +-----+-----+-----+-------------------+
-        |  x1 |  x2 |  x3 |    phi(x1, x2, x2)|
+        |  x1 |  x2 |  x3 |    phi(x1, x2, x3)|
         +-----+-----+-----+-------------------+
         | x1_0| x2_0| x3_0|     phi.value(0)  |
         +-----+-----+-----+-------------------+
@@ -71,18 +72,41 @@ class Factor:
 
         Examples
         --------
+        >>> import numpy as np
         >>> from pgmpy.factors import Factor
         >>> phi = Factor(['x1', 'x2', 'x3'], [2, 2, 2], np.ones(8))
         >>> phi
         <Factor representing phi(x1:2, x2:2, x3:2) at 0x7f8188fcaa90>
+        >>> print(phi)
+        +------+------+------+-----------------+
+        | x1   | x2   | x3   |   phi(x1,x2,x3) |
+        |------+------+------+-----------------|
+        | x1_0 | x2_0 | x3_0 |          1.0000 |
+        | x1_0 | x2_0 | x3_1 |          1.0000 |
+        | x1_0 | x2_1 | x3_0 |          1.0000 |
+        | x1_0 | x2_1 | x3_1 |          1.0000 |
+        | x1_1 | x2_0 | x3_0 |          1.0000 |
+        | x1_1 | x2_0 | x3_1 |          1.0000 |
+        | x1_1 | x2_1 | x3_0 |          1.0000 |
+        | x1_1 | x2_1 | x3_1 |          1.0000 |
+        +------+------+------+-----------------+
         """
+        if isinstance(variables, six.string_types):
+            raise TypeError("Variables: Expected type list or array like, got string")
+
         values = np.array(values)
+
+        if values.dtype != int and values.dtype != float:
+            raise TypeError("Values: Expected type int or type float, got ", values.dtype)
 
         if len(cardinality) != len(variables):
             raise ValueError("Number of elements in cardinality must be equal to number of variables")
 
         if values.size != np.product(cardinality):
             raise ValueError("Values array must be of size: {size}".format(size=np.product(cardinality)))
+
+        if len(set(variables)) != len(variables):
+            raise ValueError("Variable names cannot be same")
 
         self.variables = list(variables)
         self.cardinality = np.array(cardinality, dtype=int)
@@ -99,7 +123,7 @@ class Factor:
         Examples
         --------
         >>> from pgmpy.factors import Factor
-        >>> phi = Factor(['x1', 'x2', 'x3'], [2, 3, 2], np.ones(8))
+        >>> phi = Factor(['x1', 'x2', 'x3'], [2, 3, 2], np.ones(12))
         >>> phi.scope()
         ['x1', 'x2', 'x3']
         """
@@ -127,6 +151,9 @@ class Factor:
         >>> phi.get_cardinality(['x1', 'x2'])
         {'x1': 2, 'x2': 3}
         """
+        if isinstance(variables, six.string_types):
+            raise TypeError("variables: Expected type list or array-like, got type str")
+
         if not all([var in self.variables for var in variables]):
             raise ValueError("Variable not in scope")
 
@@ -151,7 +178,7 @@ class Factor:
         >>> from pgmpy.factors import Factor
         >>> phi = Factor(['diff', 'intel'], [2, 2], np.ones(4))
         >>> phi.assignment([1, 2])
-        [['diff_0', 'intel_1'], ['diff_1', 'intel_0']]
+        [[('diff', 0), ('intel', 1)], [('diff', 1), ('intel', 0)]]
         """
         index = np.array(index)
 
@@ -195,7 +222,7 @@ class Factor:
 
                [[ 1.,  1.],
                 [ 1.,  1.],
-                [ 1.,  1.]]]
+                [ 1.,  1.]]])
         """
         return Factor(self.variables, self.cardinality, np.ones(self.values.size))
 
@@ -227,6 +254,10 @@ class Factor:
         >>> phi.variables
         ['x2']
         """
+
+        if isinstance(variables, six.string_types):
+            raise TypeError("variables: Expected type list or array-like, got type str")
+
         phi = self if inplace else self.copy()
 
         for var in variables:
@@ -235,7 +266,7 @@ class Factor:
 
         var_indexes = [phi.variables.index(var) for var in variables]
 
-        index_to_keep = list(set(range(len(self.variables))) - set(var_indexes))
+        index_to_keep = sorted(set(range(len(self.variables))) - set(var_indexes))
         phi.variables = [phi.variables[index] for index in index_to_keep]
         phi.cardinality = phi.cardinality[index_to_keep]
 
@@ -267,6 +298,8 @@ class Factor:
         >>> from pgmpy.factors import Factor
         >>> phi = Factor(['x1', 'x2', 'x3'], [3, 2, 2], [0.25, 0.35, 0.08, 0.16, 0.05, 0.07,
         ...                                              0.00, 0.00, 0.15, 0.21, 0.09, 0.18])
+        >>> phi.variables
+        ['x1','x2','x3']
         >>> phi.maximize(['x2'])
         >>> phi.variables
         ['x1', 'x3']
@@ -275,8 +308,11 @@ class Factor:
         >>> phi.values
         array([[ 0.25,  0.35],
                [ 0.05,  0.07],
-               [ 0.15,  0.21]]
+               [ 0.15,  0.21]])
         """
+        if isinstance(variables, six.string_types):
+            raise TypeError("variables: Expected type list or array-like, got type str")
+
         phi = self if inplace else self.copy()
 
         for var in variables:
@@ -285,7 +321,7 @@ class Factor:
 
         var_indexes = [phi.variables.index(var) for var in variables]
 
-        index_to_keep = list(set(range(len(self.variables))) - set(var_indexes))
+        index_to_keep = sorted(set(range(len(self.variables))) - set(var_indexes))
         phi.variables = [phi.variables[index] for index in index_to_keep]
         phi.cardinality = phi.cardinality[index_to_keep]
 
@@ -313,6 +349,14 @@ class Factor:
         --------
         >>> from pgmpy.factors import Factor
         >>> phi = Factor(['x1', 'x2', 'x3'], [2, 3, 2], range(12))
+        >>> phi.values
+        array([[[ 0,  1],
+                [ 2,  3],
+                [ 4,  5]],
+
+               [[ 6,  7],
+                [ 8,  9],
+                [10, 11]]])
         >>> phi.normalize()
         >>> phi.variables
         ['x1', 'x2', 'x3']
@@ -325,7 +369,7 @@ class Factor:
 
                [[ 0.09090909,  0.10606061],
                 [ 0.12121212,  0.13636364],
-                [ 0.15151515,  0.16666667]]]
+                [ 0.15151515,  0.16666667]]])
 
         """
         phi = self if inplace else self.copy()
@@ -365,6 +409,13 @@ class Factor:
         >>> phi.values
         array([0., 1.])
         """
+        if isinstance(values, six.string_types):
+            raise TypeError("values: Expected type list or array-like, got type str")
+
+        if (any(isinstance(value, six.string_types) for value in values) or
+                not all(isinstance(state, (int, np.integer)) for var, state in values)):
+            raise TypeError("values: must contain tuples or array-like elements of the form (hashable object, type int)")
+
         phi = self if inplace else self.copy()
 
         var_index_to_del = []
@@ -374,7 +425,8 @@ class Factor:
             slice_[var_index] = state
             var_index_to_del.append(var_index)
 
-        var_index_to_keep = list(set(range(len(phi.variables))) - set(var_index_to_del))
+        var_index_to_keep = sorted(set(range(len(phi.variables))) - set(var_index_to_del))
+        # set difference is not gaurenteed to maintain ordering
         phi.variables = [phi.variables[index] for index in var_index_to_keep]
         phi.cardinality = phi.cardinality[var_index_to_keep]
         phi.values = phi.values[tuple(slice_)]
@@ -424,7 +476,7 @@ class Factor:
                  [45, 63]],
 
                 [[10, 30],
-                 [55, 77]]]]
+                 [55, 77]]]])
         """
         phi = self if inplace else self.copy()
         if isinstance(phi1, (int, float)):
@@ -581,7 +633,7 @@ class Factor:
 
                [[ 3.        ,  1.75      ],
                 [ 4.        ,  2.25      ],
-                [ 5.        ,  2.75      ]]]
+                [ 5.        ,  2.75      ]]])
         """
         phi = self if inplace else self.copy()
         phi1 = phi1.copy()
@@ -638,16 +690,19 @@ class Factor:
 
                [[ 9, 10, 11],
                 [12, 13, 14],
-                [15, 16, 17]]]
+                [15, 16, 17]]])
         """
         # not creating a new copy of self.values and self.cardinality
         # because __init__ methods does that.
         return Factor(self.scope(), self.cardinality, self.values)
 
     def __str__(self):
-        return self._str(phi_or_p='phi')
+        if six.PY2:
+            return self._str(phi_or_p='phi', tablefmt="psql")
+        else:
+            return self._str(phi_or_p='phi')
 
-    def _str(self, phi_or_p):
+    def _str(self, phi_or_p="phi", tablefmt="fancy_grid"):
         """
         Generate the string from `__str__` method.
 
@@ -657,7 +712,7 @@ class Factor:
                 'phi': When used for Factors.
                   'p': When used for CPDs.
         """
-        string_header = list(self.scope())
+        string_header = list(map(lambda x : six.text_type(x), self.scope()))
         string_header.append('{phi_or_p}({variables})'.format(phi_or_p=phi_or_p,
                                                               variables=','.join(string_header)))
 
@@ -670,7 +725,7 @@ class Factor:
             factor_table.append(prob_list)
             value_index += 1
 
-        return tabulate(factor_table, headers=string_header, tablefmt="fancy_grid", floatfmt=".4f")
+        return tabulate(factor_table, headers=string_header, tablefmt=tablefmt, floatfmt=".4f")
 
     def __repr__(self):
         var_card = ", ".join(['{var}:{card}'.format(var=var, card=card)
@@ -691,6 +746,8 @@ class Factor:
 
     def __truediv__(self, other):
         return self.divide(other, inplace=False)
+
+    __div__ = __truediv__
 
     def __eq__(self, other):
         if not (isinstance(self, Factor) and isinstance(other, Factor)):
@@ -717,12 +774,12 @@ class Factor:
             else:
                 return True
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __hash__(self):
-        """
-        Returns the hash of the factor object based on the scope of the factor.
-        """
-        return hash(' '.join(map(str, self.variables)) + ' '.join(map(str, self.cardinality)) +
-                    ' '.join(list(map(str, self.values.astype('float')))))
+        return hash(str(self.variables) + str(self.cardinality.tolist()) +
+                    str(self.values.astype('float').tolist()))
 
 
 def factor_product(*args):
@@ -766,11 +823,11 @@ def factor_product(*args):
              [45, 63]],
 
             [[10, 30],
-             [55, 77]]]]
+             [55, 77]]]])
     """
     if not all(isinstance(phi, Factor) for phi in args):
         raise TypeError("Arguments must be factors")
-    return functools.reduce(lambda phi1, phi2: phi1 * phi2, args)
+    return reduce(lambda phi1, phi2: phi1 * phi2, args)
 
 
 def factor_divide(phi1, phi2):
@@ -806,7 +863,7 @@ def factor_divide(phi1, phi2):
 
            [[ 3.        ,  1.75      ],
             [ 4.        ,  2.25      ],
-            [ 5.        ,  2.75      ]]]
+            [ 5.        ,  2.75      ]]])
     """
     if not isinstance(phi1, Factor) or not isinstance(phi2, Factor):
         raise TypeError("phi1 and phi2 should be factors instances")

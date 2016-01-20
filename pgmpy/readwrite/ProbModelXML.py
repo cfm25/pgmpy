@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 """
 For the student example the ProbModelXML file should be:
 
@@ -110,17 +111,20 @@ try:
     from lxml import etree
 except ImportError:
     try:
-        import xml.etree.cElementTree as etree
+        import xml.etree.ElementTree as etree
     except ImportError:
-        try:
-            import xml.etree.ElementTree as etree
-        except ImportError:
-            print("Failed to import ElementTree from any known place")
+        # import xml.etree.cElementTree as etree
+        # print("running with cElementTree on Python 2.5+")
+        # Commented out because behaviour is different from expected
+        
+        warnings.warn("Failed to import ElementTree from any known place")
 
 import networkx as nx
 import numpy as np
 from pgmpy.models import BayesianModel
 from pgmpy.factors import TabularCPD
+from pgmpy.extern import six
+from pgmpy.extern.six.moves import map
 
 # warnings.warn("Not Complete. Please use only for "
 #               "reading and writing Bayesian Models.")
@@ -277,7 +281,7 @@ def get_probmodel_data(model):
     return model_data
 
 
-class ProbModelXMLWriter:
+class ProbModelXMLWriter(object):
     """
     Class for writing models in ProbModelXML format.
     """
@@ -406,7 +410,7 @@ class ProbModelXMLWriter:
         Adds an edge to the ProbModelXML.
         """
         edge_data = self.data['probnet']['edges'][edge]
-        if isinstance(edge, str):
+        if isinstance(edge, six.string_types):
            edge = eval(edge)
         link = etree.SubElement(self.links, 'Link', attrib={'var1': edge[0], 'var2': edge[1],
                                                             'directed': edge_data['directed']})
@@ -630,7 +634,7 @@ class ProbModelXMLWriter:
             fout.write(writer)
 
 
-class ProbModelXMLReader:
+class ProbModelXMLReader(object):
     """
     Class for reading ProbModelXML format from files or strings.
     """

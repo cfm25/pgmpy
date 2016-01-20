@@ -6,6 +6,8 @@ import numpy.testing as np_test
 from pgmpy.models import BayesianModel
 import pgmpy.tests.help_functions as hf
 from pgmpy.factors import TabularCPD
+from pgmpy.independencies import Independencies
+import six
 
 
 class TestBaseModelCreation(unittest.TestCase):
@@ -118,6 +120,13 @@ class TestBayesianModelMethods(unittest.TestCase):
             self.assertTrue(edge in [('a', 'b'), ('c', 'b'), ('d', 'a'), ('d', 'b'), ('d', 'e')] or
                             (edge[1], edge[0]) in [('a', 'b'), ('c', 'b'), ('d', 'a'), ('d', 'b'), ('d', 'e')])
 
+    def test_local_independencies(self):
+        self.assertEqual(self.G.local_independencies('a'), Independencies(['a', ['b', 'c']]))
+        self.assertEqual(self.G.local_independencies('c'), Independencies(['c',['a','d','e'],'b']))
+        self.assertEqual(self.G.local_independencies('d'), Independencies(['d','c',['b','a']]))
+        self.assertEqual(self.G.local_independencies('e'), Independencies(['e',['c','b','a'],'d']))
+        self.assertEqual(self.G.local_independencies('b'), Independencies(['b','a']))
+
     def tearDown(self):
         del self.G
 
@@ -180,13 +189,11 @@ class TestBayesianModelCPD(unittest.TestCase):
         self.assertEqual(self.model.get_cpds('AB').variable, 'AB')
 
     def test_add_single_cpd(self):
-        from pgmpy.factors import TabularCPD
         cpd_s = TabularCPD('s', 2, np.random.rand(2, 2), ['i'], 2)
         self.G.add_cpds(cpd_s)
         self.assertListEqual(self.G.get_cpds(), [cpd_s])
 
     def test_add_multiple_cpds(self):
-        from pgmpy.factors import TabularCPD
         cpd_d = TabularCPD('d', 2, np.random.rand(2, 1))
         cpd_i = TabularCPD('i', 2, np.random.rand(2, 1))
         cpd_g = TabularCPD('g', 2, np.random.rand(2, 4), ['d', 'i'], [2, 2])
@@ -199,6 +206,102 @@ class TestBayesianModelCPD(unittest.TestCase):
         self.assertEqual(self.G.get_cpds('g'), cpd_g)
         self.assertEqual(self.G.get_cpds('l'), cpd_l)
         self.assertEqual(self.G.get_cpds('s'), cpd_s)
+
+    def test_check_model(self):
+        cpd_g = TabularCPD('g', 2, 
+                            np.array([[0.2, 0.3, 0.4, 0.6],
+                                      [0.8, 0.7, 0.6, 0.4]]),
+                                                            ['d', 'i'], [2, 2])
+
+        cpd_s = TabularCPD('s', 2, 
+                            np.array([[0.2, 0.3],
+                                      [0.8, 0.7]]),
+                                                ['i'], 2)
+
+        cpd_l = TabularCPD('l', 2, 
+                            np.array([[0.2, 0.3],
+                                      [0.8, 0.7]]),
+                                                ['g'], 2)
+
+        self.G.add_cpds(cpd_g, cpd_s, cpd_l)
+        self.assertTrue(self.G.check_model())
+
+
+    def test_check_model1(self):
+        cpd_g = TabularCPD('g', 2, 
+                            np.array([[0.2, 0.3],
+                                      [0.8, 0.7]]),
+                                                 ['i'], 2)
+        self.G.add_cpds(cpd_g)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_g)
+
+        cpd_g = TabularCPD('g', 2, 
+                            np.array([[0.2, 0.3, 0.4, 0.6],
+                                      [0.8, 0.7, 0.6, 0.4]]),
+                                                            ['d', 's'], [2, 2])
+        self.G.add_cpds(cpd_g)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_g)
+
+        cpd_g = TabularCPD('g', 2, 
+                            np.array([[0.2, 0.3],
+                                      [0.8, 0.7]]),
+                                                 ['l'], 2)
+        self.G.add_cpds(cpd_g)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_g)
+
+        cpd_l = TabularCPD('l', 2, 
+                            np.array([[0.2, 0.3],
+                                      [0.8, 0.7]]),
+                                                 ['d'], 2)
+        self.G.add_cpds(cpd_l)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_l)
+
+        cpd_l = TabularCPD('l', 2, 
+                            np.array([[0.2, 0.3, 0.4, 0.6],
+                                      [0.8, 0.7, 0.6, 0.4]]),
+                                                           ['d', 'i'], [2, 2])
+        self.G.add_cpds(cpd_l)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_l)
+
+        cpd_l = TabularCPD('l', 2, 
+                            np.array([[0.2, 0.3, 0.4, 0.6, 0.2, 0.3, 0.4, 0.6],
+                                      [0.8, 0.7, 0.6, 0.4, 0.8, 0.7, 0.6, 0.4]]),
+                                                            ['g', 'd', 'i'], [2, 2, 2])
+        self.G.add_cpds(cpd_l)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_l)
+
+    def test_check_model2(self):
+        cpd_s = TabularCPD('s', 2, 
+                            np.array([[0.5, 0.3],
+                                      [0.8, 0.7]]),
+                                                ['i'], 2)
+        self.G.add_cpds(cpd_s)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_s)
+
+
+        cpd_g = TabularCPD('g', 2, 
+                            np.array([[0.2, 0.3, 0.4, 0.6],
+                                      [0.3, 0.7, 0.6, 0.4]]),
+                                                            ['d', 'i'], [2, 2])
+        self.G.add_cpds(cpd_g)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_g)
+
+        cpd_l = TabularCPD('l', 2, 
+                            np.array([[0.2, 0.3],
+                                      [0.1, 0.7]]),
+                                                ['g'], 2)
+        self.G.add_cpds(cpd_l)
+        self.assertRaises(ValueError, self.G.check_model)
+        self.G.remove_cpds(cpd_l)
+
 
     def tearDown(self):
         del self.G
@@ -221,7 +324,8 @@ class TestBayesianModelFitPredict(unittest.TestCase):
             self.assertEqual(cpd.variable, node)
             np_test.assert_array_equal(cpd.cardinality, np.array([2]))
             value = (values.ix[:, node].value_counts() /
-                     values.ix[:, node].value_counts().sum()).values
+                     values.ix[:, node].value_counts().sum())
+            value = value.reindex(sorted(value.index)).values
             np_test.assert_array_equal(cpd.values, value)
 
     def test_connected_predict(self):

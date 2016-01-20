@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Contains the different formats of CPDs used in PGM"""
+from __future__ import division
 
 from itertools import product
 
-import networkx as nx
 import numpy as np
 
 from pgmpy import exceptions
 from pgmpy.factors import Factor
 from pgmpy.extern import tabulate
+from pgmpy.extern import six
+from pgmpy.extern.six.moves import range, zip
 
 
 class TabularCPD(Factor):
@@ -36,17 +38,34 @@ class TabularCPD(Factor):
     [0.1,0.1,0.1,0.1,0.1,0.1],
     [0.8,0.8,0.8,0.8,0.8,0.8]]
 
-    >>> from pgmpy.factors.CPD import TabularCPD
+    >>> from pgmpy.factors import TabularCPD
     >>> cpd = TabularCPD('grade', 3, [[0.1, 0.1],
     ...                               [0.1, 0.1],
     ...                               [0.8, 0.8]],
     ...                  evidence='evi1', evidence_card=2)
+    >>> cpd
+    <TabularCPD representing P(grade:3 | evi1:2) at 0x7f847a4f2898>
+    >>> print(cpd)
+    +---------+-------+-------+
+    | ev1     | ev1_0 | ev1_1 |
+    +---------+-------+-------+
+    | grade_0 | 0.1   | 0.1   |
+    +---------+-------+-------+
+    | grade_1 | 0.1   | 0.1   |
+    +---------+-------+-------+
+    | grade_2 | 0.8   | 0.8   |
+    +---------+-------+-------+
     >>> cpd.values
-    array([ 0.1,  0.1,  0.1,  0.1,  0.8,  0.8])
+    array([[ 0.1,  0.1],
+           [ 0.1,  0.1],
+           [ 0.8,  0.8]])
     >>> cpd.variables
-    OrderedDict([('grade', ['grade_0', 'grade_1', 'grade_2']), ('evi1', ['evi1_0', 'evi1_1'])])
+    ['grade', 'evil']
     >>> cpd.variable
     'grade'
+
+    array([ 0.1,  0.1,  0.1,  0.1,  0.8,  0.8])
+    OrderedDict([('grade', ['grade_0', 'grade_1', 'grade_2']), ('evi1', ['evi1_0', 'evi1_1'])])
 
     Parameters
     ----------
@@ -56,7 +75,7 @@ class TabularCPD(Factor):
     variable_card: integer
         cardinality of variable
 
-    values: 2d array, 2d list
+    values: 2d array, 2d list or 2d tuple
         values of the cpd table
 
     evidence: string, array-like
@@ -103,7 +122,7 @@ class TabularCPD(Factor):
             if not isinstance(evidence, (list, set, tuple)):
                 if isinstance(evidence, np.ndarray):
                     evidence = evidence.tolist()
-                elif isinstance(evidence, str):
+                elif isinstance(evidence, six.string_types):
                     evidence = [evidence]
                 else:
                     raise TypeError("Evidence must be list, set, tuple or array"
@@ -117,7 +136,7 @@ class TabularCPD(Factor):
         if values.ndim != 2:
             raise TypeError("Values must be a 2D list/array")
 
-        super().__init__(variables, cardinality, values.flatten('C'))
+        super(TabularCPD, self).__init__(variables, cardinality, values.flatten('C'))
 
     def __repr__(self):
         var_str = '<TabularCPD representing P({var}:{card}'.format(
@@ -134,6 +153,16 @@ class TabularCPD(Factor):
     def get_cpd(self):
         """
         Returns the cpd
+        >>> from pgmpy.factors import TabularCPD
+        >>> cpd = TabularCPD('grade', 3, [[0.1, 0.1],
+        ...                               [0.1, 0.1],
+        ...                               [0.8, 0.8]],
+        ...                  evidence='evi1', evidence_card=2)
+        >>> cpd.get_cpd()
+        array([[ 0.1,  0.1],
+               [ 0.1,  0.1],
+               [ 0.8,  0.8]])
+
         """
         if self.variable in self.variables:
             return self.values.reshape(self.cardinality[0], np.prod(self.cardinality[1:]))
@@ -141,16 +170,30 @@ class TabularCPD(Factor):
             return self.values.reshape(1, np.prod(self.cardinality))
 
     def __str__(self):
-        table_list = []
-        indexes = np.array(list(product(*[range(i) for i in self.cardinality[1:]])))
-        scope = self.scope()
-        for i in range(1, len(self.cardinality)):
-            row = [scope[i]]
-            row.extend(np.array(self.variables[row[0]])[indexes[:, i-1]].tolist())
-            table_list.append(row)
-        variable_array = np.array([str([v.var, v.state]) for v in self.variables[self.variable]])
-        table_list.extend(np.column_stack((variable_array, self.get_cpd())))
-        return tabulate(table_list, tablefmt="fancy_grid")
+        if six.PY2:
+            return self._make_table_str("grid")
+        else:
+            return self._make_table_str("fancy_grid")
+
+    def _str(self, phi_or_p="p", tablefmt="fancy_grid"):
+        return super(self, TabularCPD)._str(phi_or_p, tablefmt)
+
+    def _make_table_str(self, tablefmt="fancy_grid"):
+        headers_list = []
+        # build column headers
+        if self.evidence is not None:
+            col_indexes = np.array(list(product(*[range(i) for i in self.evidence_card])))
+            for i in range(len(self.evidence_card)):
+                column_header = [self.evidence[i]] + ['{s}_{d}'.format(s=self.evidence[i], d=d) for d in col_indexes.T[i]]
+                headers_list.append(column_header)
+
+        # Build row headers
+        variable_array = [['{s}_{d}'.format(s=self.variable, d=i) for i in range(self.variable_card)]]
+        # Stack with data
+        labeled_rows = np.hstack((np.array(variable_array).T, self.get_cpd())).tolist()
+        # No support for multi-headers in tabulate
+        cdf_str = tabulate(headers_list + labeled_rows, tablefmt=tablefmt)
+        return cdf_str
 
     def _repr_html_(self):
         """
@@ -321,7 +364,7 @@ class TabularCPD(Factor):
         ...                  evidence='evi1', evidence_card=2)
         >>> factor = cpd.to_factor()
         >>> factor
-
+        <Factor representing phi(grade:3, evi1:2) at 0x7f847a4f2d68>
         """
         return Factor(self.variables, self.cardinality, self.values)
 

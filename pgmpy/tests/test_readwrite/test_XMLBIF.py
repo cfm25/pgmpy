@@ -1,10 +1,15 @@
 import os
 import unittest
+import warnings
+
 import numpy as np
 import numpy.testing as np_test
+
 from pgmpy.readwrite import XMLBIFReader, XMLBIFWriter
 from pgmpy.models import BayesianModel
 from pgmpy.factors import TabularCPD
+from pgmpy.extern.six.moves import map
+
 try:
     from lxml import etree
 except ImportError:
@@ -422,3 +427,4 @@ class TestXMLBIFWriterMethodsString(unittest.TestCase):
             data = myfile.read()
         self.assertEqual(str(self.writer.__str__()[:-1]), str(etree.tostring(self.expected_xml)))
         self.assertEqual(str(data), str(etree.tostring(self.expected_xml).decode('utf-8')))
+        

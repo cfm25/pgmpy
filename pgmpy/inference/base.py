@@ -7,10 +7,10 @@ from pgmpy.models import BayesianModel
 from pgmpy.models import MarkovModel
 from pgmpy.models import FactorGraph
 from pgmpy.models import JunctionTree
-from pgmpy.exceptions import ModelError
+from pgmpy.models import DynamicBayesianNetwork
 
 
-class Inference:
+class Inference(object):
     """
     Base class for all inference algorithms.
 
@@ -54,8 +54,8 @@ class Inference:
     """
 
     def __init__(self, model):
-        if not model.check_model():
-            raise ModelError("Model of type {!r} not valid".format(type(model).__name__))
+        self.model = model
+        model.check_model()
 
         if isinstance(model, JunctionTree):
             self.variables = set(chain(*model.nodes()))
@@ -75,8 +75,16 @@ class Inference:
                     self.factors[var].append(cpd_as_factor)
 
         elif isinstance(model, (MarkovModel, FactorGraph, JunctionTree)):
-            self.cardinality = model.cardinalities
+            self.cardinality = model.get_cardinality()
 
             for factor in model.get_factors():
                 for var in factor.variables:
                     self.factors[var].append(factor)
+
+        elif isinstance(model, DynamicBayesianNetwork):
+            self.start_bayesian_model = BayesianModel(model.get_intra_edges(0))
+            self.start_bayesian_model.add_cpds(*model.get_cpds(time_slice=0))
+            cpd_inter = [model.get_cpds(node) for node in model.get_interface_nodes(1)]
+            self.interface_nodes = model.get_interface_nodes(0)
+            self.one_and_half_model = BayesianModel(model.get_inter_edges() + model.get_intra_edges(1))
+            self.one_and_half_model.add_cpds(*(model.get_cpds(time_slice=1) + cpd_inter))

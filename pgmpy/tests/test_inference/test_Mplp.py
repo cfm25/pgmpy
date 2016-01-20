@@ -1,9 +1,10 @@
 import unittest
+
 import numpy as np
-from pgmpy.models import MarkovModel
+
 from pgmpy.inference.mplp import Mplp
-from pgmpy.factors import Factor
 from pgmpy.readwrite import UAIReader
+from pgmpy.extern import six
 
 
 class TestMplp(unittest.TestCase):
@@ -50,6 +51,7 @@ class TightenTripletOff(TestMplp):
         # The final Integrality gap after solving for the present case
         int_gap = self.mplp.get_integrality_gap()
         self.assertAlmostEqual(64.59, int_gap, places=1)
+
 
 
 class TightenTripletOn(TestMplp):

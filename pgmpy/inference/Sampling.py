@@ -5,10 +5,11 @@ import networkx as nx
 import numpy as np
 from pandas import DataFrame
 
-from pgmpy.factors.Factor import Factor, factor_product
+from pgmpy.factors.Factor import factor_product
 from pgmpy.inference import Inference
 from pgmpy.models import BayesianModel, MarkovChain, MarkovModel
 from pgmpy.utils.mathext import sample_discrete
+from pgmpy.extern.six.moves import map, range
 
 
 State = namedtuple('State', ['var', 'state'])
@@ -30,10 +31,10 @@ class BayesianModelSampling(Inference):
     """
     def __init__(self, model):
         if not isinstance(model, BayesianModel):
-            raise TypeError("model must an instance of BayesianModel")
-        super().__init__(model)
+            raise TypeError("Model expected type: BayesianModel, got type: ", type(model))
+
         self.topological_order = nx.topological_sort(model)
-        self.cpds = {node: model.get_cpds(node) for node in model.nodes()}
+        super(BayesianModelSampling, self).__init__(model)
 
     def forward_sample(self, size=1):
         """
@@ -64,22 +65,32 @@ class BayesianModelSampling(Inference):
         >>> inference = BayesianModelSampling(student)
         >>> inference.forward_sample(2)
                 diff       intel       grade
-        0  (diff, 1)  (intel, 0)  (grade, 1)
-        1  (diff, 1)  (intel, 0)  (grade, 2)
+        0        1           0          1
+        1        1           0          2
         """
         sampled = DataFrame(index=range(size), columns=self.topological_order)
         for node in self.topological_order:
-            cpd = self.cpds[node]
-            states = [state for state in range(cpd.get_cardinality(node)[node])]
+            cpd = self.model.get_cpds(node)
+            states = range(self.cardinality[node])
             if cpd.evidence:
-                indices = [i for i, x in enumerate(self.topological_order) if x in cpd.evidence]
-                evidence = sampled.values[:, [indices]].tolist()
-                weights = list(map(lambda t: cpd.reduce(t[0], inplace=False).values, evidence))
-                sampled[node] = list(map(lambda t: State(node, t), sample_discrete(states, weights)))
+                cached_values = self.pre_compute_reduce(variable=node)
+                evidence = sampled.ix[:, cpd.evidence].values
+                weights = list(map(lambda t: cached_values[tuple(t)], evidence))
             else:
-                sampled[node] = list(map(lambda t: State(node, t),
-                                     sample_discrete(states, cpd.values, size)))
+                weights = cpd.values
+            sampled[node] = sample_discrete(states, weights, size)
         return sampled
+
+    def pre_compute_reduce(self, variable):
+        variable_cpd = self.model.get_cpds(variable)
+        variable_evid = variable_cpd.evidence
+        cached_values = {}
+
+        for state_combination in itertools.product(*[range(self.cardinality[var]) for var in variable_evid]):
+            states = list(zip(variable_evid, state_combination))
+            cached_values[state_combination] = variable_cpd.reduce(states, inplace=False).values
+
+        return cached_values
 
     def rejection_sample(self, evidence=None, size=1):
         """
@@ -115,8 +126,8 @@ class BayesianModelSampling(Inference):
         >>> evidence = [State(var='diff', state=0)]
         >>> inference.rejection_sample(evidence, 2)
                 intel       diff       grade
-        0  (intel, 0)  (diff, 0)  (grade, 1)
-        1  (intel, 0)  (diff, 0)  (grade, 1)
+        0         0          0          1
+        1         0          0          1
         """
         if evidence is None:
             return self.forward_sample(size)
@@ -126,7 +137,7 @@ class BayesianModelSampling(Inference):
             _size = int(((size - len(sampled)) / prob) * 1.5)
             _sampled = self.forward_sample(_size)
             for evid in evidence:
-                _sampled = _sampled[_sampled.ix[:, evid.var] == evid]
+                _sampled = _sampled[_sampled.ix[:, evid[0]] == evid[1]]
             prob = max(len(_sampled) / _size, 0.01)
             sampled = sampled.append(_sampled)
         sampled.reset_index(inplace=True, drop=True)
@@ -168,33 +179,32 @@ class BayesianModelSampling(Inference):
         >>> evidence = [State('diff', 0)]
         >>> inference.likelihood_weighted_sample(evidence, 2)
                 intel       diff       grade  _weight
-        0  (intel, 0)  (diff, 0)  (grade, 1)      0.6
-        1  (intel, 1)  (diff, 0)  (grade, 1)      0.6
+        0         0          0          1        0.6
+        1         1          0          1        0.6
         """
         sampled = DataFrame(index=range(size), columns=self.topological_order)
         sampled['_weight'] = np.ones(size)
         evidence_dict = {var: st for var, st in evidence}
         for node in self.topological_order:
-            cpd = self.cpds[node]
-            states = [state for state in range(cpd.get_cardinality(node)[node])]
+            cpd = self.model.get_cpds(node)
+            states = range(self.cardinality[node])
             if cpd.evidence:
-                indices = [i for i, x in enumerate(self.topological_order) if x in cpd.evidence]
-                evidence = sampled.values[:, [indices]].tolist()
-                weights = list(map(lambda t: cpd.reduce(t[0], inplace=False).values, evidence))
+                evidence = sampled.ix[:, cpd.evidence].values
+                cached_values = self.pre_compute_reduce(node)
+                weights = list(map(lambda t: cached_values[tuple(t)], evidence))
                 if node in evidence_dict:
-                    sampled[node] = (State(node, evidence_dict[node]), ) * size
+                    sampled[node] = evidence_dict[node]
                     for i in range(size):
                         sampled.loc[i, '_weight'] *= weights[i][evidence_dict[node]]
                 else:
-                    sampled[node] = list(map(lambda t: State(node, t), sample_discrete(states, weights)))
+                    sampled[node] = sample_discrete(states, weights)
             else:
                 if node in evidence_dict:
-                    sampled[node] = (State(node, evidence_dict[node]), ) * size
+                    sampled[node] = evidence_dict[node]
                     for i in range(size):
                         sampled.loc[i, '_weight'] *= cpd.values[evidence_dict[node]]
                 else:
-                    sampled[node] = list(map(lambda t: State(node, t),
-                                         sample_discrete(states, cpd.values, size)))
+                    sampled[node] = sample_discrete(states, cpd.values, size)
         return sampled
 
 
@@ -236,7 +246,7 @@ class GibbsSampling(MarkovChain):
     2      1    1
     """
     def __init__(self, model=None):
-        super().__init__()
+        super(GibbsSampling, self).__init__()
         if isinstance(model, BayesianModel):
             self._get_kernel_from_bayesian_model(model)
         elif isinstance(model, MarkovModel):
@@ -264,7 +274,7 @@ class GibbsSampling(MarkovChain):
             kernel = {}
             scope = set(prod_cpd.scope())
             for tup in itertools.product(*[range(card) for card in other_cards]):
-                states = [State(var, s) for var, s in zip(other_vars, tup) if var in scope]
+                states = [State(v, s) for v, s in zip(other_vars, tup) if v in scope]
                 prod_cpd_reduced = prod_cpd.reduce(states, inplace=False)
                 kernel[tup] = prod_cpd_reduced.values / sum(prod_cpd_reduced.values)
             self.transition_models[var] = kernel
@@ -289,7 +299,7 @@ class GibbsSampling(MarkovChain):
         # Take factor product
         factors_dict = {var: factor_product(*factors) if len(factors) > 1 else factors[0]
                         for var, factors in factors_dict.items()}
-        self.cardinalities = {var: factors_dict[var].get_cardinality(var)[var] for var in self.variables}
+        self.cardinalities = {var: factors_dict[var].get_cardinality([var])[var] for var in self.variables}
 
         for var in self.variables:
             other_vars = [v for v in self.variables if var != v]
@@ -342,7 +352,6 @@ class GibbsSampling(MarkovChain):
 
         sampled = DataFrame(index=range(size), columns=self.variables)
         sampled.loc[0] = [st for var, st in self.state]
-
         for i in range(size - 1):
             for j, (var, st) in enumerate(self.state):
                 other_st = tuple(st for v, st in self.state if var != v)

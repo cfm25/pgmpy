@@ -1,14 +1,19 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import unittest
-from io import StringIO
-import networkx as nx
+import warnings
+import json
+
 import numpy as np
+import numpy.testing as np_test
+
 from pgmpy.readwrite import ProbModelXMLReader, ProbModelXMLWriter, get_probmodel_data
 from pgmpy.models import BayesianModel
 from pgmpy.factors import TabularCPD
-import numpy.testing as np_test
-import warnings
-import json
+from pgmpy.extern.six.moves import range
+from pgmpy.extern import six
+
 try:
     from lxml import etree
 except ImportError:
@@ -17,6 +22,7 @@ except ImportError:
     except ImportError:
         try:
             import xml.etree.ElementTree as etree
+            print("running with ElementTree on Python 2.5+")
         except ImportError:
             warnings.warn("Failed to import ElementTree from any known place")
 
@@ -203,7 +209,7 @@ class TestProbModelXMLReaderString(unittest.TestCase):
 """
         self.maxDiff = None
         self.reader_string = ProbModelXMLReader(string=string)
-        self.reader_file = ProbModelXMLReader(path=StringIO(string))
+        self.reader_file = ProbModelXMLReader(path=six.StringIO(string))
 
     def test_comment(self):
         comment_expected = ("Student example model from Probabilistic Graphical Models: "
@@ -276,15 +282,15 @@ class TestProbModelXMLReaderString(unittest.TestCase):
                                'type': 'Tree/ADD',
                                'UtilityVaribale': 'U1',
                                'Branches': [{'Potential': {'type': 'Tree/ADD',
-                                                           'Branches': [{'Thresholds': [{'value': '–Infinity'},
+                                                           'Branches': [{'Thresholds': [{'value': u'–Infinity'},
                                                                                         {'value': '0', 'belongsTo': 'Left'}],
                                                                          'Potential': {'Subpotentials': [{'Potential': {'type': 'Table',
                                                                                                                         'Values': '3'},
                                                                                                           'type': 'Exponential'},
                                                                                                          {'NumericVariables': ['C0', 'C1'],
                                                                                                           'Potential': {'type': 'Table',
-                                                                                                                        'Values': '–1'},
-                                                                                                          'Coefficients': '4 –1',
+                                                                                                                        'Values': u'–1'},
+                                                                                                          'Coefficients': u'4 –1',
                                                                                                           'type': 'Exponential'}],
                                                                                        'Variables': {'C0': ['C1']},
                                                                                        'type': 'MixtureOfExponentials'}},
@@ -598,6 +604,7 @@ class TestProbModelXMLReaderString(unittest.TestCase):
         self.assertDictEqual(model.node, node_expected)
         self.assertDictEqual(model.edge, edge_expected)
         self.assertListEqual(sorted(model.edges()), sorted(edges_expected))
+
 
 
 class TestProbModelXMLWriter(unittest.TestCase):
@@ -1044,6 +1051,7 @@ class TestProbModelXMLWriter(unittest.TestCase):
             data = myfile.read()
         self.assertEqual(str(self.writer.__str__()[:-1]), str(etree.tostring(self.expected_xml)))
         self.assertEqual(str(data), str(etree.tostring(self.expected_xml).decode('utf-8')))
+
 
 
 class TestProbModelXMLmethods(unittest.TestCase):

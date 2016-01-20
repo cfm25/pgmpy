@@ -1,19 +1,26 @@
 #!/usr/bin/env python
+# -*- coding: UTF-8 -*-
 from collections import defaultdict
+
+import warnings
+
+from pgmpy.extern import six
+from pgmpy.extern.six.moves import range
 
 try:
     from lxml import etree
 except ImportError:
     try:
-        import xml.etree.cElementTree as etree
+        import xml.etree.ElementTree as etree
     except ImportError:
-        try:
-            import xml.etree.ElementTree as etree
-        except ImportError:
-            print("Failed to import ElementTree from any known place")
+        # import xml.etree.cElementTree as etree
+        # print("running with cElementTree on Python 2.5+")
+        # Commented out because behaviour is different from expected
+        
+        warnings.warn("Failed to import ElementTree from any known place")
 
 
-class PomdpXReader:
+class PomdpXReader(object):
     """
     Class for reading PomdpX file format from files or strings
     """
@@ -367,7 +374,7 @@ class PomdpXReader:
         return dag
 
 
-class PomdpXWriter():
+class PomdpXWriter(object):
     """
     Class for writing models in PomdpX
     """
@@ -500,7 +507,7 @@ class PomdpXWriter():
             for edge in sorted(edge_dict.keys(), key=tuple):
                 edge_tag = etree.SubElement(node_tag, 'Edge', attrib={'val': edge})
                 value = edge_dict.get(edge)
-                if isinstance(value, str):
+                if isinstance(value, six.string_types):
                     terminal_tag = etree.SubElement(edge_tag, 'Terminal')
                     terminal_tag.text = value
                 elif 'type' in value:

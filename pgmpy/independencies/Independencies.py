@@ -1,7 +1,8 @@
 from pgmpy import exceptions
+from pgmpy.extern import six
 
 
-class Independencies:
+class Independencies(object):
     """
     Base class for independencies.
     independencies class represents a set of Conditional Independence
@@ -49,6 +50,15 @@ class Independencies:
         return string
 
     __repr__ = __str__
+
+    def __eq__(self, other):
+        if not isinstance(other, Independencies):
+            return False
+        other_assertions = other.get_assertions()
+        return all(self_independency in other_assertions for self_independency in self.get_assertions())
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def get_assertions(self):
         """
@@ -113,7 +123,7 @@ class Independencies:
         pass
 
 
-class IndependenceAssertion:
+class IndependenceAssertion(object):
     """
     Represents Conditional Independence or Independence assertion.
 
@@ -189,13 +199,29 @@ class IndependenceAssertion:
 
     __repr__ = __str__
 
+    def __eq__(self, other):
+        if not isinstance(other, IndependenceAssertion):
+            return False
+        self_assertions = self.get_assertion()
+        other_assertions = other.get_assertion()
+        if len(self_assertions) != len(other_assertions):
+            return False
+        self_assertions = set(six.moves.map(frozenset, self_assertions))
+        other_assertions = set(six.moves.map(frozenset, other_assertions))
+        if self_assertions == other_assertions:
+            return True
+        return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     @staticmethod
     def _return_list_if_str(event):
         """
         If variable is a string returns a list containing variable.
         Else returns variable itself.
         """
-        if isinstance(event, str):
+        if isinstance(event, six.string_types):
             return [event]
         else:
             return event

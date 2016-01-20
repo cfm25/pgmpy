@@ -4,19 +4,21 @@ try:
     from lxml import etree
 except ImportError:
     try:
-        import xml.etree.cElementTree as etree
+        import xml.etree.ElementTree as etree
     except ImportError:
-        try:
-            import xml.etree.ElementTree as etree
-        except ImportError:
-            print("Failed to import ElementTree from any known place")
+        #try:
+        #    import xml.etree.cElementTree as etree
+        #    commented out because xml.etree.cElementTree is giving errors with dictionary attributes
+        print("Failed to import ElementTree from any known place")
+        
 import numpy as np
 
 from pgmpy.models import BayesianModel
 from pgmpy.factors import TabularCPD, State
+from pgmpy.extern.six.moves import map, range
 
 
-class XMLBIFReader:
+class XMLBIFReader(object):
     """
     Base class for reading network file in XMLBIF format.
     """
@@ -186,7 +188,7 @@ class XMLBIFReader:
         return model
 
 
-class XMLBIFWriter:
+class XMLBIFWriter(object):
     """
     Base class for writing XMLBIF network file format.
     """

@@ -5,8 +5,8 @@ from collections import defaultdict
 import numpy as np
 
 from pgmpy.base import UndirectedGraph
-from pgmpy.exceptions import CardinalityError
 from pgmpy.factors import factor_product
+from pgmpy.extern.six.moves import filter, range, zip
 
 
 class ClusterGraph(UndirectedGraph):
@@ -55,11 +55,10 @@ class ClusterGraph(UndirectedGraph):
     ...                   (('a', 'b', 'c'), ('a', 'c'))])
     """
     def __init__(self, ebunch=None):
-        super().__init__()
+        super(ClusterGraph, self).__init__()
         if ebunch:
             self.add_edges_from(ebunch)
         self.factors = []
-        self.cardinalities = defaultdict(int)
 
     def add_node(self, node, **kwargs):
         """
@@ -81,7 +80,7 @@ class ClusterGraph(UndirectedGraph):
             raise TypeError('Node can only be a list, set or tuple of nodes forming a clique')
 
         node = tuple(node)
-        super().add_node(node, **kwargs)
+        super(ClusterGraph, self).add_node(node, **kwargs)
 
     def add_nodes_from(self, nodes, **kwargs):
         """
@@ -123,7 +122,7 @@ class ClusterGraph(UndirectedGraph):
         if set_u.isdisjoint(set_v):
             raise ValueError('No sepset found between these two edges.')
 
-        super().add_edge(u, v)
+        super(ClusterGraph, self).add_edge(u, v)
 
     def add_factors(self, *factors):
         """
@@ -147,7 +146,7 @@ class ClusterGraph(UndirectedGraph):
         >>> student = ClusterGraph()
         >>> student.add_node(('Alice', 'Bob'))
         >>> factor = Factor(['Alice', 'Bob'], cardinality=[3, 2],
-        ...                 value=np.random.rand(6))
+        ...                 values=np.random.rand(6))
         >>> student.add_factors(factor)
         """
         for factor in factors:
@@ -184,7 +183,7 @@ class ClusterGraph(UndirectedGraph):
         if node is None:
             return self.factors
         else:
-            nodes = [set(node) for node in self.nodes()]
+            nodes = [set(n) for n in self.nodes()]
 
             if set(node) not in nodes:
                 raise ValueError('Node not present in Cluster Graph')
@@ -208,6 +207,38 @@ class ClusterGraph(UndirectedGraph):
         """
         for factor in factors:
             self.factors.remove(factor)
+
+    def get_cardinality(self, check_cardinality=False):
+        """
+        Returns a dictionary with the given factors as keys and their respective
+        cardinality as values.
+        
+        Parameters
+        ----------
+        check_cardinality: boolean, optional
+            If, check_cardinality=True it checks if cardinality information
+            for all the variables is availble or not. If not it raises an error.
+
+        Examples
+        --------
+        >>> from pgmpy.models import ClusterGraph
+        >>> from pgmpy.factors import Factor
+        >>> student = ClusterGraph()
+        >>> factor = Factor(['Alice', 'Bob'], cardinality=[2, 2],
+        ...                 values=np.random.rand(4))
+        >>> student.add_node(('Alice', 'Bob'))
+        >>> student.add_factors(factor)
+        >>> student.get_cardinality()
+        defaultdict(<class 'int'>, {'Bob': 2, 'Alice': 2})
+        
+        """
+        cardinalities = defaultdict(int)
+        for factor in self.factors:
+            for variable, cardinality in zip(factor.scope(), factor.cardinality):
+                cardinalities[variable] = cardinality
+        if check_cardinality and len(set((x for clique in self.nodes() for x in clique))) != len(cardinalities):
+            raise ValueError('Factors for all the variables not defined.')
+        return cardinalities
 
     def get_partition_function(self):
         r"""
@@ -242,12 +273,13 @@ class ClusterGraph(UndirectedGraph):
     def check_model(self):
         """
         Check the model for various errors. This method checks for the following
-        errors. In the same time also updates the cardinalities of all the random
-        variables.
+        errors.
 
-        * Checks if clique potentials are defined for all the cliques or not.
+        * Checks if factors are defined for all the cliques or not.
         * Check for running intersection property is not done explicitly over
         here as it done in the add_edges method.
+        * Check if cardinality of random variable remains same across all the
+        factors.
 
         Returns
         -------
@@ -255,24 +287,15 @@ class ClusterGraph(UndirectedGraph):
             True if all the checks are passed
         """
         for clique in self.nodes():
-            if self.get_factors(clique):
-                pass
-            else:
-                raise ValueError('Factors for all the cliques or clusters not'
-                                 'defined.')
+            factors = filter(lambda x: set(x.scope()) == set(clique), self.factors)
+            if not any(factors):
+                raise ValueError('Factors for all the cliques or clusters not defined.')
 
-        if len(self.factors) != len(self.nodes()):
-            raise ValueError('One to one mapping of factor to clique or cluster'
-                             'is not there.')
-
+        cardinalities = self.get_cardinality()
         for factor in self.factors:
             for variable, cardinality in zip(factor.scope(), factor.cardinality):
-                if ((self.cardinalities[variable]) and
-                        (self.cardinalities[variable] != cardinality)):
-                    raise CardinalityError(
-                        'Cardinality of variable %s not matching among factors' % variable)
-                else:
-                    self.cardinalities[variable] = cardinality
-
+                if (cardinalities[variable] != cardinality):
+                    raise ValueError(
+                        'Cardinality of variable {var} not matching among factors'.format(var=variable))
         return True
 

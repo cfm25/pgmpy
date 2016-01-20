@@ -6,13 +6,13 @@ import numpy as np
 import numpy.testing as np_test
 
 from pgmpy.factors import Factor
+from pgmpy.factors import JointProbabilityDistribution as JPD
 from pgmpy.factors import factor_product
 from pgmpy.factors import factor_divide
 from pgmpy.factors.CPD import TabularCPD
 from pgmpy import exceptions
-
-
-State = namedtuple('State', ['var', 'state'])
+from pgmpy.extern.six.moves import range
+from pgmpy.independencies import Independencies
 
 
 class TestFactorInit(unittest.TestCase):
@@ -31,6 +31,15 @@ class TestFactorInit(unittest.TestCase):
     def test_class_init_sizeerror(self):
         self.assertRaises(ValueError, Factor, ['x1', 'x2', 'x3'], [2, 2, 2], np.ones(9))
 
+    def test_class_init_typeerror(self):
+        self.assertRaises(TypeError, Factor, ['x1', 'x2', 'x3'], [2, 1, 1], ['val1', 'val2'])
+        self.assertRaises(TypeError, Factor, ['x1', 'x2', 'x3'], [2, 1, 1], [1, 'val1'])
+        self.assertRaises(TypeError, Factor, ['x1', 'x2', 'x3'], [2, 1, 1], ['val1', 1])
+        self.assertRaises(TypeError, Factor, ['x1', 'x2', 'x3'], [2, 1, 1], [0.1, 'val1'])
+        self.assertRaises(TypeError, Factor, ['x1', 'x2', 'x3'], [2, 1, 1], ['val1', 0.1])
+        self.assertRaises(TypeError, Factor, 'x1', [3], [1, 2, 3])
+        self.assertRaises(ValueError, Factor, ['x1', 'x1', 'x3'], [2, 3, 2], range(12))
+
     def test_init_size_var_card_not_equal(self):
         self.assertRaises(ValueError, Factor, ['x1', 'x2'], [2], np.ones(2))
 
@@ -40,26 +49,30 @@ class TestFactorMethods(unittest.TestCase):
         self.phi = Factor(['x1', 'x2', 'x3'], [2, 2, 2], np.random.uniform(5, 10, size=8))
         self.phi1 = Factor(['x1', 'x2', 'x3'], [2, 3, 2], range(12))
         self.phi2 = Factor([('x1', 0), ('x2', 0), ('x3', 0)], [2, 3, 2], range(12))
+        # This larger factor (phi3) caused a bug in reduce
+        card3 = [3, 3, 3, 2, 2, 2, 2, 2, 2]
+        self.phi3 = Factor(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'],
+                           card3, np.arange(np.prod(card3), dtype=np.float))
 
     def test_scope(self):
         self.assertListEqual(self.phi.scope(), ['x1', 'x2', 'x3'])
         self.assertListEqual(self.phi1.scope(), ['x1', 'x2', 'x3'])
 
-#    def test_assignment(self):
-#        self.assertListEqual(self.phi.assignment([0]), [[State('x1', 0), State('x2', 0), State('x3', 0)]])
-#        self.assertListEqual(self.phi.assignment([4, 5, 6]), [[State('x1', 1), State('x2', 0), State('x3', 0)],
-#                                                              [State('x1', 1), State('x2', 0), State('x3', 1)],
-#                                                              [State('x1', 1), State('x2', 1), State('x3', 0)]])
+    def test_assignment(self):
+        self.assertListEqual(self.phi.assignment([0]), [[('x1', 0), ('x2', 0), ('x3', 0)]])
+        self.assertListEqual(self.phi.assignment([4, 5, 6]), [[('x1', 1), ('x2', 0), ('x3', 0)],
+                                                             [('x1', 1), ('x2', 0), ('x3', 1)],
+                                                             [('x1', 1), ('x2', 1), ('x3', 0)]])
 
-#        self.assertListEqual(self.phi1.assignment(np.array([4, 5, 6])),
-#                             [[State('x1', 0), State('x2', 2), State('x3', 0)],
-#                              [State('x1', 0), State('x2', 2), State('x3', 1)],
-#                              [State('x1', 1), State('x2', 0), State('x3', 0)]])
+        self.assertListEqual(self.phi1.assignment(np.array([4, 5, 6])),
+                             [[('x1', 0), ('x2', 2), ('x3', 0)],
+                              [('x1', 0), ('x2', 2), ('x3', 1)],
+                              [('x1', 1), ('x2', 0), ('x3', 0)]])
 
-#    def test_assignment_indexerror(self):
-#        self.assertRaises(IndexError, self.phi.assignment, [10])
-#        self.assertRaises(IndexError, self.phi.assignment, [1, 3, 10, 5])
-#        self.assertRaises(IndexError, self.phi.assignment, np.array([1, 3, 10, 5]))
+    def test_assignment_indexerror(self):
+        self.assertRaises(IndexError, self.phi.assignment, [10])
+        self.assertRaises(IndexError, self.phi.assignment, [1, 3, 10, 5])
+        self.assertRaises(IndexError, self.phi.assignment, np.array([1, 3, 10, 5]))
 
     def test_get_cardinality(self):
         self.assertEqual(self.phi.get_cardinality(['x1']), {'x1': 2})
@@ -70,7 +83,10 @@ class TestFactorMethods(unittest.TestCase):
         self.assertEqual(self.phi.get_cardinality(['x1', 'x2', 'x3']), {'x1': 2, 'x2': 2, 'x3': 2})
 
     def test_get_cardinality_scopeerror(self):
-        self.assertRaises(ValueError, self.phi.get_cardinality, 'x4')
+        self.assertRaises(ValueError, self.phi.get_cardinality, ['x4'])
+
+    def test_get_cardinality_typeerror(self):
+        self.assertRaises(TypeError, self.phi.get_cardinality, 'x1')
 
     def test_marginalize(self):
         self.phi1.marginalize(['x1'])
@@ -87,7 +103,16 @@ class TestFactorMethods(unittest.TestCase):
         self.assertRaises(ValueError, self.phi.marginalize, ['x4'])
 
         self.phi.marginalize(['x1'])
-        self.assertRaises(ValueError, self.phi.marginalize, 'x1')
+        self.assertRaises(ValueError, self.phi.marginalize, ['x1'])
+
+    def test_marginalize_typeerror(self):
+        self.assertRaises(TypeError, self.phi.marginalize, 'x1')
+
+    def test_marginalize_shape(self):
+        values = ['A', 'D', 'F', 'H']
+        phi3_max = self.phi3.marginalize(values, inplace=False)
+        # Previously a sorting error caused these to be different
+        np_test.assert_array_equal(phi3_max.values.shape, phi3_max.cardinality)
 
     def test_normalize(self):
         self.phi1.normalize()
@@ -107,9 +132,11 @@ class TestFactorMethods(unittest.TestCase):
         self.phi1.reduce([('x2', 0), ('x1', 0)])
         np_test.assert_array_equal(self.phi1.values, np.array([0, 1]))
 
-    def test_reduce2(self):
-        self.phi2.reduce([(('x2', 0), 0), (('x1', 0), 0)])
-        np_test.assert_array_equal(self.phi2.values, np.array([0, 1]))
+    def test_reduce_shape(self):
+        values = [('A', 0), ('D', 0), ('F', 0), ('H', 1)]
+        phi3_reduced = self.phi3.reduce(values, inplace=False)
+        # Previously a sorting error caused these to be different
+        np_test.assert_array_equal(phi3_reduced.values.shape, phi3_reduced.cardinality)
 
     @unittest.skip
     def test_complete_reduce(self):
@@ -119,8 +146,13 @@ class TestFactorMethods(unittest.TestCase):
         np_test.assert_array_equal(self.phi1.variables, OrderedDict())
 
     def test_reduce_typeerror(self):
-        self.assertRaises(ValueError, self.phi1.reduce, 'x10')
-        self.assertRaises(ValueError, self.phi1.reduce, ['x10'])
+        self.assertRaises(TypeError, self.phi1.reduce, 'x10')
+        self.assertRaises(TypeError, self.phi1.reduce, ['x10'])
+        self.assertRaises(TypeError, self.phi1.reduce, [('x1', 'x2')])
+        self.assertRaises(TypeError, self.phi1.reduce, [(0, 'x1')])
+        self.assertRaises(TypeError, self.phi1.reduce, [(0.1, 'x1')])
+        self.assertRaises(TypeError, self.phi1.reduce, [(0.1, 0.1)])
+        self.assertRaises(TypeError, self.phi1.reduce, [('x1', 0.1)])
 
     def test_reduce_scopeerror(self):
         self.assertRaises(ValueError, self.phi1.reduce, [('x4', 1)])
@@ -130,7 +162,7 @@ class TestFactorMethods(unittest.TestCase):
 
     def test_identity_factor(self):
         identity_factor = self.phi.identity_factor()
-        self.assertEquals(list(identity_factor.variables), ['x1', 'x2', 'x3'])
+        self.assertEqual(list(identity_factor.variables), ['x1', 'x2', 'x3'])
         np_test.assert_array_equal(identity_factor.cardinality, [2, 2, 2])
         np_test.assert_array_equal(identity_factor.values, np.ones(8).reshape(2, 2, 2))
 
@@ -250,6 +282,18 @@ class TestFactorMethods(unittest.TestCase):
         self.phi2.maximize(['x2'])
         self.assertEqual(self.phi2, Factor(['x1', 'x3'], [3, 2], [0.25, 0.35, 0.05,
                                                                   0.07, 0.15, 0.21]))
+
+    def test_maximize_shape(self):
+        values = ['A', 'D', 'F', 'H']
+        phi3_max = self.phi3.maximize(values, inplace=False)
+        # Previously a sorting error caused these to be different
+        np_test.assert_array_equal(phi3_max.values.shape, phi3_max.cardinality)
+
+    def test_maximize_scopeerror(self):
+        self.assertRaises(ValueError, self.phi.maximize, ['x10'])
+
+    def test_maximize_typeerror(self):
+        self.assertRaises(TypeError, self.phi.maximize, 'x1')
 
     def tearDown(self):
         del self.phi
@@ -392,60 +436,94 @@ class TestTabularCPDMethods(unittest.TestCase):
     def tearDown(self):
         del self.cpd
 
+class TestJointProbabilityDistributionInit(unittest.TestCase):
+    def test_jpd_init(self):
+        jpd = JPD(['x1', 'x2', 'x3'], [2, 3, 2], np.ones(12) / 12)
+        np_test.assert_array_equal(jpd.cardinality, np.array([2, 3, 2]))
+        np_test.assert_array_equal(jpd.values, np.ones(12).reshape(2, 3, 2) / 12)
+        self.assertEqual(jpd.get_cardinality(['x1', 'x2', 'x3']), {'x1':2, 'x2':3, 'x3':2})
 
-# class TestJointProbabilityDistributionInit(unittest.TestCase):
-#     def test_jpd_init(self):
-#         jpd = JPD(['x1', 'x2', 'x3'], [2, 3, 2], np.ones(12) / 12)
-#         np_test.assert_array_equal(jpd.cardinality, np.array([2, 3, 2]))
-#         np_test.assert_array_equal(jpd.values, np.ones(12) / 12)
-#         dic = {'x1': [('x1', 0), ('x1', 1)], 'x2': [('x2', 0), ('x2', 1), ('x2', 2)], 'x3': [('x3', 0), ('x3', 1)]}
-#         self.assertEqual(jpd.variables, OrderedDict(sorted(dic.items(), key=lambda t: t[1])))
-#
-#     def test_jpd_init_exception(self):
-#         self.assertRaises(ValueError, JPD, ['x1', 'x2', 'x3'], [2, 2, 2], np.ones(8))
-#
-#
-# class TestJointProbabilityDistributionMethods(unittest.TestCase):
-#     def setUp(self):
-#         self.jpd = JPD(['x1', 'x2', 'x3'], [2, 3, 2], values=np.ones(12) / 12)
-#
-#     def test_jpd_marginal_distribution_list(self):
-#         self.jpd.marginal_distribution(['x1', 'x2'])
-#         np_test.assert_array_almost_equal(self.jpd.values, np.array([0.16666667, 0.16666667, 0.16666667,
-#                                                                      0.16666667, 0.16666667, 0.16666667]))
-#         np_test.assert_array_equal(self.jpd.cardinality, np.array([2, 3]))
-#         dic = {'x1': [('x1', 0), ('x1', 1)], 'x2': [('x2', 0), ('x2', 1), ('x2', 2)]}
-#         self.assertEqual(self.jpd.variables, OrderedDict(sorted(dic.items(), key=lambda t: t[1])))
-#         np_test.assert_almost_equal(np.sum(self.jpd.values), 1)
-#
-#     def test_marginal_distribution_str(self):
-#         self.jpd.marginal_distribution('x1')
-#         np_test.assert_array_almost_equal(self.jpd.values, np.array([0.5, 0.5]))
-#         np_test.assert_array_equal(self.jpd.cardinality, np.array([2]))
-#         dic = {'x1': [('x1', 0), ('x1', 1)]}
-#         self.assertEqual(self.jpd.variables, OrderedDict(sorted(dic.items(), key=lambda t: t[1])))
-#         np_test.assert_almost_equal(np.sum(self.jpd.values), 1)
-#
-#     def test_conditional_distribution_list(self):
-#         self.jpd.conditional_distribution([('x1', 1), ('x2', 0)])
-#         np_test.assert_array_almost_equal(self.jpd.values, np.array([0.5, 0.5]))
-#         np_test.assert_array_equal(self.jpd.cardinality, np.array([2]))
-#         dic = {'x3': [('x3', 0), ('x3', 1)]}
-#         self.assertEqual(self.jpd.variables, OrderedDict(sorted(dic.items(), key=lambda t: t[1])))
-#         np_test.assert_almost_equal(np.sum(self.jpd.values), 1)
-#
-#     def test_conditional_distribution_str(self):
-#         self.jpd.conditional_distribution(('x1', 1))
-#         np_test.assert_array_almost_equal(self.jpd.values, np.array([0.16666667, 0.16666667,
-#                                                                      0.16666667, 0.16666667,
-#                                                                      0.16666667, 0.16666667]))
-#         np_test.assert_array_equal(self.jpd.cardinality, np.array([3, 2]))
-#         dic = {'x2': [('x2', 0), ('x2', 1), ('x2', 2)], 'x3': [('x3', 0), ('x3', 1)]}
-#         self.assertEqual(self.jpd.variables, OrderedDict(sorted(dic.items(), key=lambda t: t[1])))
-#         np_test.assert_almost_equal(np.sum(self.jpd.values), 1)
-#
-#     def tearDown(self):
-#         del self.jpd
+    def test_jpd_init_exception(self):
+        self.assertRaises(ValueError, JPD, ['x1', 'x2', 'x3'], [2, 2, 2], np.ones(8))
+
+
+class TestJointProbabilityDistributionMethods(unittest.TestCase):
+    def setUp(self):
+        self.jpd = JPD(['x1', 'x2', 'x3'], [2, 3, 2], values=np.ones(12) / 12)
+        self.jpd1 = JPD(['x1', 'x2', 'x3'], [2, 3, 2], values=np.ones(12) / 12)
+        self.jpd2 = JPD(['x1','x2','x3'],[2,2,3],
+                       [0.126,0.168,0.126,0.009,0.045,0.126,0.252,0.0224,0.0056,0.06,0.036,0.024])
+
+    def test_jpd_marginal_distribution_list(self):
+        self.jpd.marginal_distribution(['x1', 'x2'])
+        np_test.assert_array_almost_equal(self.jpd.values, np.array([[0.16666667, 0.16666667, 0.16666667],
+                                                                     [0.16666667, 0.16666667, 0.16666667]]))
+        np_test.assert_array_equal(self.jpd.cardinality, np.array([2, 3]))
+        dic = {'x1':2, 'x2':3}
+        self.assertEqual(self.jpd.get_cardinality(['x1','x2']), dic)
+        self.assertEqual(self.jpd.scope(), ['x1', 'x2'])
+        np_test.assert_almost_equal(np.sum(self.jpd.values), 1)
+        new_jpd = self.jpd1.marginal_distribution(['x1', 'x2'], inplace=False)
+        self.assertTrue(self.jpd1 != self.jpd)
+        self.assertTrue(new_jpd == self.jpd)
+
+    def test_marginal_distribution_str(self):
+        self.jpd.marginal_distribution('x1')
+        np_test.assert_array_almost_equal(self.jpd.values, np.array([0.5, 0.5]))
+        np_test.assert_array_equal(self.jpd.cardinality, np.array([2]))
+        self.assertEqual(self.jpd.scope(), ['x1'])
+        np_test.assert_almost_equal(np.sum(self.jpd.values), 1)
+        new_jpd = self.jpd1.marginal_distribution('x1', inplace=False)
+        self.assertTrue(self.jpd1 != self.jpd)
+        self.assertTrue(self.jpd == new_jpd)
+
+    def test_conditional_distribution_list(self):
+        self.jpd = self.jpd1.copy()
+        self.jpd.conditional_distribution([('x1', 1), ('x2', 0)])
+        np_test.assert_array_almost_equal(self.jpd.values, np.array([0.5, 0.5]))
+        np_test.assert_array_equal(self.jpd.cardinality, np.array([2]))
+        self.assertEqual(self.jpd.scope(), ['x3'])
+        np_test.assert_almost_equal(np.sum(self.jpd.values), 1)
+        new_jpd = self.jpd1.conditional_distribution([('x1', 1), ('x2', 0)], inplace=False)
+        self.assertTrue(self.jpd1 != self.jpd)
+        self.assertTrue(self.jpd == new_jpd)
+
+    def test_check_independence(self):
+        self.assertTrue(self.jpd2.check_independence(['x1'], ['x2']))
+        self.assertRaises(TypeError, self.jpd2.check_independence, 'x1', ['x2'])
+        self.assertRaises(TypeError, self.jpd2.check_independence, ['x1'], 'x2')
+        self.assertRaises(TypeError, self.jpd2.check_independence,['x1'], ['x2'], 'x3')
+        self.assertFalse(self.jpd2.check_independence(['x1'], ['x2'], ('x3',), condition_random_variable=True))
+        self.assertFalse(self.jpd2.check_independence(['x1'], ['x2'], [('x3', 0)]))
+        self.assertTrue(self.jpd1.check_independence(['x1'], ['x2'], ('x3',), condition_random_variable=True))
+        self.assertTrue(self.jpd1.check_independence(['x1'], ['x2'], [('x3', 1)]))
+
+    def test_get_independencies(self):
+        independencies = Independencies(['x1', 'x2'], ['x2', 'x3'], ['x3', 'x1'])
+        independencies1 = Independencies(['x1', 'x2'])
+        self.assertEqual(self.jpd1.get_independencies(), independencies)
+        self.assertEqual(self.jpd2.get_independencies(), independencies1)
+        self.assertEqual(self.jpd1.get_independencies([('x3', 0)]), independencies1)
+        self.assertEqual(self.jpd2.get_independencies([('x3', 0)]), Independencies())
+
+    def test_minimal_imap(self):
+        bm = self.jpd1.minimal_imap(order=['x1','x2','x3'])
+        self.assertEqual(sorted(bm.edges()), sorted([('x1', 'x3'), ('x2', 'x3')]))
+        bm = self.jpd1.minimal_imap(order=['x2','x3','x1'])
+        self.assertEqual(sorted(bm.edges()), sorted([('x2', 'x1'), ('x3', 'x1')]))
+        bm = self.jpd2.minimal_imap(order=['x1','x2','x3'])
+        self.assertEqual(bm.edges(), [])
+        bm = self.jpd2.minimal_imap(order=['x1','x2'])
+        self.assertEqual(bm.edges(), [])
+
+    def test_repr(self):
+        self.assertEqual(repr(self.jpd1),'<Joint Distribution representing P(x1:2, x2:3, x3:2) at {address}>'
+                         .format(address=hex(id(self.jpd1))))
+
+    def tearDown(self):
+        del self.jpd
+        del self.jpd1
+        del self.jpd2
 
 #
 # class TestTreeCPDInit(unittest.TestCase):

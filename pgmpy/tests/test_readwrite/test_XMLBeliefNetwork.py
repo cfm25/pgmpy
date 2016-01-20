@@ -1,10 +1,14 @@
 import unittest
-from io import StringIO
+import warnings
+
 import numpy as np
 import numpy.testing as np_test
+
 from pgmpy.readwrite import XMLBeliefNetwork
 from pgmpy.models import BayesianModel
 from pgmpy.factors import TabularCPD
+from pgmpy.extern import six
+
 try:
     from lxml import etree
 except ImportError:
@@ -115,7 +119,7 @@ class TestXBNReader(unittest.TestCase):
                     </ANALYSISNOTEBOOK>"""
 
         self.reader_string = XMLBeliefNetwork.XBNReader(string=string)
-        self.reader_file = XMLBeliefNetwork.XBNReader(path=StringIO(string))
+        self.reader_file = XMLBeliefNetwork.XBNReader(path=six.StringIO(string))
 
     def test_init_exception(self):
         self.assertRaises(ValueError, XMLBeliefNetwork.XBNReader)
@@ -379,3 +383,4 @@ class TestXBNWriter(unittest.TestCase):
   </BNMODEL>
 </ANALYSISNOTEBOOK>""")
         self.assertEqual(str(self.writer.__str__()[:-1]), str(etree.tostring(self.expected_xml)))
+

@@ -8,7 +8,6 @@ pgmpy
 Python Library for Probabilistic Graphical Models  
 Documentation: [pgmpy](http://pgmpy.org/)  
 Mailing List: pgmpy@googlegroups.com  
-irc: #pgmpy on freenode.net
 
 Dependencies:
 =============
@@ -38,6 +37,33 @@ to build a python extension module:
 
 ```bash
 sudo python3 setup.py install
+```
+
+Development:
+============
+
+Code
+----
+
+You can check the latest sources with the command::
+
+    git clone https://github.com/pgmpy/pgmpy
+
+Contributing
+------------
+
+Before opening a Pull Request, have a look at the
+full Contributing page to make sure your code complies
+with our guidelines - 
+https://github.com/pgmpy/pgmpy/blob/dev/Contributing.md
+
+Testing
+-------
+
+After installation, you can launch the test suite from outside the
+source directory (you will need to have the ``nose`` package installed)::
+```bash
+$ nosetests -v
 ```
 
 Example:
