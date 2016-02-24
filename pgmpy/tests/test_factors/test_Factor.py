@@ -1,5 +1,6 @@
 import unittest
 import itertools
+import warnings
 from collections import OrderedDict, namedtuple
 
 import numpy as np
@@ -264,7 +265,8 @@ class TestFactorMethods(unittest.TestCase):
                                                       4, 5, 15, 16, 17, 6, 7,
                                                       8, 18, 19, 20, 9, 10, 11,
                                                       21, 22, 23])
-        self.assertTrue(phi1, phi2)
+        self.assertTrue(phi1 == phi2)
+        self.assertEqual(phi2.variables,['x2', 'x1', 'x3'] )
 
     def test_hash(self):
         phi = Factor(['x1', 'x2'], [2, 2], [1, 2, 3, 4])
@@ -324,11 +326,11 @@ class TestTabularCPDInit(unittest.TestCase):
                          evidence=['intel', 'diff'], evidence_card=[3, 2])
         self.assertEqual(cpd.variable, 'grade')
         self.assertEqual(cpd.variable_card, 3)
-        np_test.assert_array_equal(cpd.cardinality, np.array([3, 2, 3]))
-        self.assertListEqual(list(cpd.variables), ['grade', 'diff', 'intel'])
+        np_test.assert_array_equal(cpd.cardinality, np.array([3, 3, 2]))
+        self.assertListEqual(list(cpd.variables), ['grade', 'intel', 'diff'])
         np_test.assert_array_equal(cpd.values, np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
                                                          0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
-                                                         0.8, 0.8, 0.8, 0.8, 0.8, 0.8]).reshape(3, 2, 3))
+                                                         0.8, 0.8, 0.8, 0.8, 0.8, 0.8]).reshape(3, 3, 2))
 
         cpd = TabularCPD('grade', 3, [[0.1, 0.1],
                                       [0.1, 0.1],
@@ -377,6 +379,11 @@ class TestTabularCPDMethods(unittest.TestCase):
                                            [0.8, 0.8, 0.8, 0.8, 0.8, 0.8]],
                               evidence=['intel', 'diff'], evidence_card=[3, 2])
 
+        self.cpd2 = TabularCPD('J', 2, [[0.9,0.3,0.9,0.3,0.8,0.8,0.4,0.4],
+                                         [0.1,0.7,0.1,0.7,0.2,0.2,0.6,0.6]],
+                                evidence=['A', 'B', 'C'], evidence_card= [2, 2, 2] )
+
+
     def test_marginalize_1(self):
         self.cpd.marginalize(['diff'])
         self.assertEqual(self.cpd.variable, 'grade')
@@ -388,7 +395,11 @@ class TestTabularCPDMethods(unittest.TestCase):
                                                                       0.8, 0.8, 0.8]))
 
     def test_marginalize_2(self):
-        self.assertRaises(ValueError, self.cpd.marginalize, ['grade'])
+        self.cpd.marginalize(['grade'])
+        self.assertEqual(self.cpd.variable, 'grade')
+        self.assertListEqual(list(self.cpd.variables), ['intel', 'diff'])
+        np_test.assert_array_equal(self.cpd.cardinality, np.array([3, 2]))
+        np_test.assert_array_equal(self.cpd.values.ravel(), np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
 
     def test_normalize(self):
         cpd_un_normalized = TabularCPD('grade', 2, [[0.7, 0.2, 0.6, 0.2], [0.4, 0.4, 0.4, 0.8]],
@@ -410,6 +421,17 @@ class TestTabularCPDMethods(unittest.TestCase):
                          .format(address=hex(id(intel_cpd))))
         self.assertEqual(repr(diff_cpd), '<TabularCPD representing P(grade:3 | diff:2) at {address}>'
                          .format(address=hex(id(diff_cpd))))
+
+    def test_copy(self):
+        copy_cpd = self.cpd.copy()
+        np_test.assert_array_equal(self.cpd.get_cpd(), copy_cpd.get_cpd())
+
+    def test_copy_original_safe(self):
+        copy_cpd = self.cpd.copy()
+        copy_cpd.reorder_parents(['diff', 'intel'])
+        np_test.assert_array_equal(self.cpd.get_cpd(), np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+                                                                 [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+                                                                 [0.8, 0.8, 0.8, 0.8, 0.8, 0.8]]))
 
     def test_reduce_1(self):
         self.cpd.reduce([('diff', 0)])
@@ -436,6 +458,31 @@ class TestTabularCPDMethods(unittest.TestCase):
         np_test.assert_array_equal(self.cpd.get_cpd(), np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
                                                                  [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
                                                                  [0.8, 0.8, 0.8, 0.8, 0.8, 0.8]]))
+
+    def test_reorder_parents_inplace(self):
+        new_vals = self.cpd2.reorder_parents(['B','A','C'])
+        np_test.assert_array_equal(new_vals, np.array([[0.9, 0.3, 0.8, 0.8, 0.9, 0.3, 0.4, 0.4],
+                                                       [0.1, 0.7, 0.2, 0.2, 0.1, 0.7, 0.6, 0.6]]))
+        np_test.assert_array_equal(self.cpd2.get_cpd(), np.array([[0.9, 0.3, 0.8, 0.8, 0.9, 0.3, 0.4, 0.4],
+                                                       [0.1, 0.7, 0.2, 0.2, 0.1, 0.7, 0.6, 0.6]]))
+
+    def test_reorder_parents(self):
+        new_vals = self.cpd2.reorder_parents(['B','A','C'])
+        np_test.assert_array_equal(new_vals, np.array([[0.9, 0.3, 0.8, 0.8, 0.9, 0.3, 0.4, 0.4],
+                                                       [0.1, 0.7, 0.2, 0.2, 0.1, 0.7, 0.6, 0.6]]))
+
+    def test_reorder_parents_no_effect(self):
+        self.cpd2.reorder_parents(['C','A','B'], inplace=False)
+        np_test.assert_array_equal(self.cpd2.get_cpd(), np.array([[0.9,0.3,0.9,0.3,0.8,0.8,0.4,0.4],
+                                                                  [0.1,0.7,0.1,0.7,0.2,0.2,0.6,0.6]]))
+    def test_reorder_parents_warning(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.cpd2.reorder_parents(['A','B','C'], inplace=False)
+            assert("Same ordering provided as current" in str(w[-1].message))
+            np_test.assert_array_equal(self.cpd2.get_cpd(), np.array([[0.9,0.3,0.9,0.3,0.8,0.8,0.4,0.4],
+                                                                  [0.1,0.7,0.1,0.7,0.2,0.2,0.6,0.6]]))
+
 
     def tearDown(self):
         del self.cpd

@@ -279,13 +279,13 @@ class BayesianModel(DirectedGraph):
         for node in self.nodes():
             cpd = self.get_cpds(node=node)
             if isinstance(cpd, TabularCPD):
-                evidence = cpd.evidence
+                evidence = cpd.variables[:0:-1]
                 parents = self.get_parents(node)
                 if set(evidence if evidence else []) != set(parents if parents else []):
                     raise ValueError("CPD associated with %s doesn't have "
                                      "proper parents associated with it." % node)
                 if not np.allclose(cpd.to_factor().marginalize([node], inplace=False).values.flatten('C'),
-                                   np.ones(np.product(cpd.evidence_card)),
+                                   np.ones(np.product(cpd.cardinality[:0:-1])),
                                    atol=0.01):
                     raise ValueError('Sum of probabilites of states for node %s'
                                      ' is not equal to 1.' % node)
@@ -395,7 +395,7 @@ class BayesianModel(DirectedGraph):
         Parameters
         ----------
         variables: str or array like
-            variables whose local independencies are to found.
+            variables whose local independencies are to be found.
 
         Examples
         --------
@@ -415,8 +415,8 @@ class BayesianModel(DirectedGraph):
             """
             Returns the descendents of node.
 
-            Since there can't be any cycles in the Bayesian Network. This is a
-            very simple dfs which doen't remember which nodes it has visited.
+            Since Bayesian Networks are acyclic, this is a very simple dfs
+            which does not remember which nodes it has visited.
             """
             descendents = []
             visit = [node]
@@ -430,9 +430,10 @@ class BayesianModel(DirectedGraph):
         from pgmpy.independencies import Independencies
         independencies = Independencies()
         for variable in [variables] if isinstance(variables, str) else variables:
-            independencies.add_assertions([variable, set(self.nodes()) - set(dfs(variable)) -
-                                           set(self.get_parents(variable)) - {variable},
-                                           set(self.get_parents(variable))])
+            non_descendents = set(self.nodes()) - {variable} - set(dfs(variable))
+            parents = set(self.get_parents(variable))
+            if non_descendents - parents:
+                independencies.add_assertions([variable, non_descendents - parents, parents])
         return independencies
 
     def is_active_trail(self, start, end, observed=None):
@@ -471,7 +472,7 @@ class BayesianModel(DirectedGraph):
 
     def get_independencies(self, latex=False):
         """
-        Compute independencies in Bayesian Network.
+        Computes independencies in the Bayesian Network, by checking d-seperation.
 
         Parameters
         ----------
@@ -482,21 +483,19 @@ class BayesianModel(DirectedGraph):
         Examples
         --------
         >>> from pgmpy.models import BayesianModel
-        >>> student = BayesianModel()
-        >>> student.add_nodes_from(['diff', 'intel', 'grades', 'letter', 'sat'])
-        >>> student.add_edges_from([('diff', 'grades'), ('intel', 'grades'), ('grades', 'letter'),
-        ...                         ('intel', 'sat')])
-        >>> student.get_independencies()
+        >>> chain = BayesianModel([('X', 'Y'), ('Y', 'Z')])
+        >>> chain.get_independencies()
+        (X _|_ Z | Y)
+        (Z _|_ X | Y)
         """
         independencies = Independencies()
         for start in (self.nodes()):
-            for r in (1, len(self.nodes())):
-                for observed in itertools.combinations(self.nodes(), r):
-                    independent_variables = self.active_trail_nodes(start, observed=observed)
-                    independent_variables = set(independent_variables) - {start}
-                    if independent_variables:
-                        independencies.add_assertions([start, independent_variables,
-                                                       observed])
+            rest = set(self.nodes()) - {start}
+            for r in range(len(rest)):
+                for observed in itertools.combinations(rest, r):
+                    d_seperated_variables = rest - set(observed) - set(self.active_trail_nodes(start, observed=observed))
+                    if d_seperated_variables:
+                        independencies.add_assertions([start, d_seperated_variables, observed])
 
         independencies.reduce()
 
@@ -771,7 +770,6 @@ class BayesianModel(DirectedGraph):
         else:
             return False
 
-<<<<<<< HEAD
     def is_imap(self, independence):
         pass
 
@@ -783,5 +781,3 @@ class BayesianModel(DirectedGraph):
                 cpd_copy.append(cpd.copy())
             copy.add_cpds(*cpd_copy)
         return copy
-=======
->>>>>>> upstream/dev

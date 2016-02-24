@@ -3,6 +3,7 @@ pgmpy
 [![Build Status](https://travis-ci.org/pgmpy/pgmpy.svg?style=flat)](https://travis-ci.org/pgmpy/pgmpy)
 [![Coverage Status](https://coveralls.io/repos/pgmpy/pgmpy/badge.svg?branch=dev)](https://coveralls.io/r/pgmpy/pgmpy?branch=dev)
 [![Code Health](https://landscape.io/github/pgmpy/pgmpy/dev/landscape.svg?style=flat)](https://landscape.io/github/pgmpy/pgmpy/dev)
+[![PyPI](https://img.shields.io/pypi/dd/pgmpy.svg)]()
 [![Join the chat at https://gitter.im/pgmpy/pgmpy](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/pgmpy/pgmpy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 pgmpy is a python library for working with Probabilistic Graphical Models.
@@ -42,11 +43,11 @@ In the directory run either of the following:
 
 Using pip
 ```
-$ pip install -r requirements.txt
+$ pip install -r requirements.txt  # or requirements-dev.txt if you want to run unittests
 ```
 or conda
 ```
-$ conda intall --file requirements.txt
+$ conda intall --file requirements.txt  # or requirements-dev.txt
 ```
 
 Then install using:
@@ -189,7 +190,7 @@ python3
 {'diff', 'intel'}
 
 ```
-Lisence
+License
 =======
 pgmpy is released under MIT License. You can read about our lisence at [here](https://github.com/pgmpy/pgmpy/blob/dev/LICENSE)
 
