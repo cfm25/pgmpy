@@ -1,7 +1,6 @@
 import unittest
-import itertools
 import warnings
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 
 import numpy as np
 import numpy.testing as np_test
@@ -452,7 +451,8 @@ class TestTabularCPDMethods(unittest.TestCase):
                                                                  [0.8]]))
 
     def test_reduce_4(self):
-        self.assertRaises(ValueError, self.cpd.reduce, [('grade', 0)])
+        self.cpd.reduce([('grade', 0)])
+        np_test.assert_array_equal(self.cpd.get_cpd(), np.array([[1, 1, 1, 1, 1, 1]]))
 
     def test_get_cpd(self):
         np_test.assert_array_equal(self.cpd.get_cpd(), np.array([[0.1, 0.1, 0.1, 0.1, 0.1, 0.1],

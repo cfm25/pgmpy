@@ -254,33 +254,33 @@ class TabularCPD(Factor):
         return ''.join(string_list)
 
     def copy(self):
-         """
-         Returns a copy of the TabularCPD object.
+        """
+        Returns a copy of the TabularCPD object.
 
-         Examples
-         --------
-         >>> from pgmpy.factors import TabularCPD
-         >>> cpd = TabularCPD('grade', 2,
-         ...                  [[0.7, 0.6, 0.6, 0.2],[0.3, 0.4, 0.4, 0.8]],
-         ...                  ['intel', 'diff'], [2, 2])
-         >>> copy = cpd.copy()
-         >>> copy.variable
-         'grade'
-         >>> copy.variable_card
-         2
-         >>> copy.evidence
-         ['intel', 'diff']
-         >>> copy.values
+        Examples
+        --------
+        >>> from pgmpy.factors import TabularCPD
+        >>> cpd = TabularCPD('grade', 2,
+        ...                  [[0.7, 0.6, 0.6, 0.2],[0.3, 0.4, 0.4, 0.8]],
+        ...                  ['intel', 'diff'], [2, 2])
+        >>> copy = cpd.copy()
+        >>> copy.variable
+        'grade'
+        >>> copy.variable_card
+        2
+        >>> copy.evidence
+        ['intel', 'diff']
+        >>> copy.values
         array([[[ 0.7,  0.6],
                 [ 0.6,  0.2]],
 
                [[ 0.3,  0.4],
                 [ 0.4,  0.8]]])
-         """
-         evidence = self.variables[1:] if len(self.variables) > 1 else None
-         evidence_card = self.cardinality[1:] if len(self.variables) > 1 else None
-         return TabularCPD(self.variable, self.variable_card, self.get_cpd(),
-                           evidence, evidence_card)
+        """
+        evidence = self.variables[1:] if len(self.variables) > 1 else None
+        evidence_card = self.cardinality[1:] if len(self.variables) > 1 else None
+        return TabularCPD(self.variable, self.variable_card, self.get_cpd(),
+                          evidence, evidence_card)
 
     def normalize(self, inplace=True):
         """
@@ -321,8 +321,8 @@ class TabularCPD(Factor):
         """
         Modifies the cpd table with marginalized values.
 
-        Parameters
-        ----------
+        Paramters
+        ---------
         variables: string, list-type
             name of variable to be marginalized
         inplace: boolean
@@ -352,40 +352,8 @@ class TabularCPD(Factor):
         super(TabularCPD, tabular_cpd).marginalize(variables)
         tabular_cpd.normalize()
 
-        # TODO: Find an elegant way to do this
-        # Changes in evidence and evidence_card
-        for var in variables:
-            index_to_delete = self.evidence.index(var)
-            self.evidence.pop(index_to_delete)
-            self.evidence_card.pop(index_to_delete)
-
-        if not self.evidence:
-            self.evidence = None
-            self.evidence_card = None
-
         if not inplace:
             return tabular_cpd
-
-    def copy(self):
-        """
-        Returns a copy of the TabularCPD object.
-
-        Examples
-        --------
-        >>> from pgmpy.factors import TabularCPD
-        >>> cpd = TabularCPD('grade', 2,
-        ...                  [[0.7, 0.6, 0.6, 0.2],[0.3, 0.4, 0.4, 0.8]],
-        ...                  ['intel', 'diff'], [2, 2])
-        >>> copy = cpd.copy()
-        >>> copy.variable
-        'grade'
-        >>> copy.variable_card
-        2
-        >>> copy.evidence
-        ['intel', 'diff']
-        """
-        return TabularCPD(self.variable, self.variable_card, self.get_cpd(),
-                          self.evidence, self.evidence_card)
 
     def reduce(self, values, inplace=True):
         """
@@ -443,7 +411,7 @@ class TabularCPD(Factor):
         return Factor(self.variables, self.cardinality, self.values)
     
     def reorder_parents(self, new_order, inplace=True):
-        """
+        '''
         Returns a new cpd table according to provided order
 
         Parameters
