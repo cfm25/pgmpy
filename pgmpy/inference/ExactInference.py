@@ -43,7 +43,7 @@ class VariableElimination(Inference):
         >>> barren_nodes = inference._barren_nodes(['A', 'B'], [])
         {'D', 'E'}
         """
-        relevant_vars = set([variables] + evidence_vars)
+        relevant_vars = set(variables + evidence_vars)
 
         ancestor_nodes = set()
         for var in relevant_vars:
@@ -73,7 +73,10 @@ class VariableElimination(Inference):
         return non_reachable_nodes
 
     def _optimize_bayesian_elimination(self, variables, evidence_vars):
-        model = copy.deepcopy(self.model)
+        """
+        Returns a reduced model structure and
+        """
+        model = self.model.copy()
         factors = {node: {factor for factor in self.factors[node]}
                    for node in self.factors}
 
@@ -82,8 +85,9 @@ class VariableElimination(Inference):
         model.remove_nodes_from(barren_nodes)
 
         # Independent Nodes
-        independent_nodes = self._independent_by_evidence(model, variables, evidence_vars)
-        model.remove_nodes_from(independent_nodes)
+        if len(variables) == 1:
+            independent_nodes = self._independent_by_evidence(model, variables, evidence_vars)
+            model.remove_nodes_from(independent_nodes)
 
         # Constructing factor dict
         factors = defaultdict(list)
@@ -129,7 +133,8 @@ class VariableElimination(Inference):
         """
         self.variables = variable
         self.operation = operation
-        self.evidence_vars = list(evidence.keys()) if evidence else []
+        self.evidence_vars = [evi[0] for evi in evidence] if evidence else []
+        self.evidence_vars_states = [evi[1] for evi in evidence] if evidence else []
         self.elimination_order = elimination_order
         self.working_factors = {node: {factor for factor in self.factors[node]}
                                 for node in self.factors}
@@ -145,27 +150,26 @@ class VariableElimination(Inference):
                 all_factors.extend(factor_li)
             return set(all_factors)
 
-        evidence_vars = [evi[0] for evi in evidence] if evidence else []
-
         eliminated_variables = set()
 
         # Dealing with evidence. Reducing factors over it before VE is run.
-        for evidence_var in evidence_vars:
-            for factor in self.working_factors[evidence_var]:
-                factor_reduced = factor.reduce([(evidence_var, evidence[evidence_var])], inplace=False)
+        for evidence_var_index in range(len(self.evidence_vars)):
+            for factor in self.working_factors[self.evidence_vars[evidence_var_index]]:
+                factor_reduced = factor.reduce([(self.evidence_vars[evidence_var_index],
+                                                 self.evidence_vars_states[evidence_var_index])], inplace=False)
                 for var in factor_reduced.scope():
                     self.working_factors[var].remove(factor)
                     self.working_factors[var].add(factor_reduced)
-            del self.working_factors[evidence_var]
+            del self.working_factors[self.evidence_vars[evidence_var_index]]
 
         # TODO: Modify it to find the optimal elimination order
         if not elimination_order:
             elimination_order = list(set(self.working_model.nodes()) -
-                                     set([variable]) -
-                                     set(evidence_vars))
+                                     set(variable) -
+                                     set(self.evidence_vars))
 
         elif any(var in elimination_order for var in
-                 set(variable).union(set(evidence_vars))):
+                 set(variable).union(set(self.evidence_vars))):
             raise ValueError("Elimination order contains variables which are in"
                              " variables or evidence args")
 
@@ -188,12 +192,12 @@ class VariableElimination(Inference):
                 if not set(factor.variables).intersection(eliminated_variables):
                     final_distribution.add(factor)
 
-        query_var_factor = {}
-        for query_var in [variable]:
-            phi = factor_product(*final_distribution)
-            query_var_factor[query_var] = phi.marginalize(list(set([variable]) - {query_var}),
-                                                          inplace=False).normalize(inplace=False)
-        return query_var_factor
+        # query_var_factor = {}
+        # for query_var in [variable]:
+        #     phi = factor_product(*final_distribution)
+        #     query_var_factor[query_var] = phi.marginalize(list(set([variable]) - {query_var}),
+        #                                                   inplace=False).normalize(inplace=False)
+        return factor_product(*final_distribution)
 
     def query(self, variables, evidence=None, elimination_order=None):
         """

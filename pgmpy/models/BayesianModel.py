@@ -771,9 +771,6 @@ class BayesianModel(DirectedGraph):
         else:
             return False
 
-    def is_imap(self, independence):
-        pass
-
     def copy(self):
         copy = BayesianModel(self.edges())
         if self.cpds:

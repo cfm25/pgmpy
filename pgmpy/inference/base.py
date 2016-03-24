@@ -57,8 +57,6 @@ class Inference(object):
         self.model = model
         model.check_model()
 
-        self.model = model
-
         if isinstance(model, JunctionTree):
             self.variables = set(chain(*model.nodes()))
         else:
