@@ -7,7 +7,6 @@ from warnings import warn
 
 import numpy as np
 
-from pgmpy import exceptions
 from pgmpy.factors import Factor
 from pgmpy.extern import tabulate
 from pgmpy.extern import six
@@ -132,8 +131,7 @@ class TabularCPD(Factor):
                                     " of strings.")
             variables.extend(evidence)
             if not len(evidence_card) == len(evidence):
-                raise exceptions.CardinalityError("Cardinality of all "
-                                                  "evidences not specified")
+                raise ValueError("Cardinality of all evidences not specified")
         values = np.array(values)
         if values.ndim != 2:
             raise TypeError("Values must be a 2D list/array")
@@ -142,7 +140,7 @@ class TabularCPD(Factor):
 
     def __repr__(self):
         var_str = '<TabularCPD representing P({var}:{card}'.format(
-                            var=self.variable, card=self.variable_card)
+            var=self.variable, card=self.variable_card)
 
         evidence = self.variables[1:]
         evidence_card = self.cardinality[1:]
@@ -218,11 +216,11 @@ class TabularCPD(Factor):
         evidence_card = self.cardinality[1:]
 
         if evidence:
-            evidence_card.reverse()
-            evidence_card.insert(0, 1)
+            evidence_card = evidence_card[::-1]
+            evidence_card = np.insert(evidence_card, 0, 1)
             cum_card = np.cumprod(evidence_card)
             max_card = cum_card[-1]
-            evidence.reverse()
+            evidence = evidence[::-1]
 
             for i in range(len(evidence)):
                 var = str(evidence[i])
@@ -303,17 +301,9 @@ class TabularCPD(Factor):
         array([[ 0.63636364,  0.33333333,  0.6       ,  0.2       ],
                [ 0.36363636,  0.66666667,  0.4       ,  0.8       ]])
         """
-        if inplace:
-            tabular_cpd = self
-        else:
-            evidence = self.variables[1:]
-            evidence_card = self.cardinality[1:]
-            tabular_cpd = TabularCPD(self.variable, self.variable_card,
-                                     self.get_cpd(), evidence,
-                                     evidence_card)
+        tabular_cpd = self if inplace else self.copy()
         cpd = tabular_cpd.get_cpd()
-        tabular_cpd.values = (cpd / cpd.sum(axis=0)).flatten('C')
-
+        tabular_cpd.values = (cpd / cpd.sum(axis=0)).reshape(tabular_cpd.cardinality)
         if not inplace:
             return tabular_cpd
 
@@ -335,19 +325,15 @@ class TabularCPD(Factor):
         >>> cpd_table = TabularCPD('grade', 2,
         ...                        [[0.7, 0.6, 0.6, 0.2],[0.3, 0.4, 0.4, 0.8]],
         ...                        ['intel', 'diff'], [2, 2])
-        >>> cpd_table.marginalize('diff')
+        >>> cpd_table.marginalize(['diff'])
         >>> cpd_table.get_cpd()
-        array([[ 0.48484848,  0.4       ],
-               [ 0.51515152,  0.6       ]])
+        array([[ 0.65,  0.4 ],
+                [ 0.35,  0.6 ]])
         """
-        if inplace:
-            tabular_cpd = self
-        else:
-            evidence = self.variables[1:]
-            evidence_card = self.cardinality[1:]
-            tabular_cpd = TabularCPD(self.variable, self.variable_card,
-                                     self.get_cpd(), evidence,
-                                     evidence_card)
+        if self.variable in variables:
+            raise ValueError("Marginalization not allowed on the variable on which CPD is defined")
+
+        tabular_cpd = self if inplace else self.copy()
 
         super(TabularCPD, tabular_cpd).marginalize(variables)
         tabular_cpd.normalize()
@@ -373,19 +359,15 @@ class TabularCPD(Factor):
         >>> cpd_table = TabularCPD('grade', 2,
         ...                        [[0.7, 0.6, 0.6, 0.2],[0.3, 0.4, 0.4, 0.8]],
         ...                        ['intel', 'diff'], [2, 2])
-        >>> cpd_table.reduce('diff_0')
+        >>> cpd_table.reduce([('diff', 0)])
         >>> cpd_table.get_cpd()
         array([[ 0.7,  0.6],
                [ 0.3,  0.4]])
         """
-        if inplace:
-            tabular_cpd = self
-        else:
-            evidence = self.variables[1:]
-            evidence_card = self.cardinality[1:]
-            tabular_cpd = TabularCPD(self.variable, self.variable_card,
-                                     self.get_cpd(), evidence,
-                                     evidence_card)
+        if self.variable in (value[0] for value in values):
+            raise ValueError("Reduce not allowed on the variable on which CPD is defined")
+
+        tabular_cpd = self if inplace else self.copy()
 
         super(TabularCPD, tabular_cpd).reduce(values)
         tabular_cpd.normalize()
@@ -409,9 +391,9 @@ class TabularCPD(Factor):
         <Factor representing phi(grade:3, evi1:2) at 0x7f847a4f2d68>
         """
         return Factor(self.variables, self.cardinality, self.values)
-    
+
     def reorder_parents(self, new_order, inplace=True):
-        '''
+        """
         Returns a new cpd table according to provided order
 
         Parameters
@@ -497,8 +479,9 @@ class TabularCPD(Factor):
         'grade'
         >>> cpd.variable_card
         3
-        '''
-        if  len(self.variables) <= 1 or (set(new_order) - set(self.variables)) or (set(self.variables[1:]) - set(new_order)):
+        """
+        if (len(self.variables) <= 1 or (set(new_order) - set(self.variables)) or
+                (set(self.variables[1:]) - set(new_order))):
             raise ValueError("New order either has missing or extra arguments")
         else:
             if new_order != self.variables[1:]:
@@ -519,6 +502,9 @@ class TabularCPD(Factor):
             else:
                 warn("Same ordering provided as current")
                 return self.get_cpd()
+
+    def get_evidence(self):
+        return self.variables[:0:-1]
 
 # Commenting out because not used anywhere for now and not implemented in a very good way.
 # class TreeCPD(nx.DiGraph):
