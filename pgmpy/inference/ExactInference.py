@@ -551,10 +551,10 @@ class BeliefPropagation(Inference):
         if not is_calibrated:
             self.calibrate()
 
-        if not isinstance(variables, (list, tuple, set)):
-            query_variables = [variables]
-        else:
-            query_variables = list(variables)
+        if not hasattr(variables, '__iter__'):
+            raise TypeError("variables: Expected type iterable got {type}".format(type=type(variables)))
+
+        query_variables = list(variables)
         query_variables.extend(evidence.keys() if evidence else [])
 
         # Find a tree T' such that query_variables are a subset of scope(T')
@@ -582,6 +582,7 @@ class BeliefPropagation(Inference):
         if len(subtree.nodes()) == 1:
             root_node = subtree.nodes()[0]
         else:
+            import pdb; pdb.set_trace()
             root_node = tuple(filter(lambda x: len(subtree.neighbors(x)) == 1, subtree.nodes()))[0]
         clique_potential_list = [self.clique_beliefs[root_node]]
 
