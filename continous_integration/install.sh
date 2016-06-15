@@ -17,10 +17,10 @@ if [[ "$DISTRIB" == "conda" ]]; then
 
 	# Use the miniconda installer for faster download / install of conda
 	# itself
-	wget http://repo.continuum.io/miniconda/Miniconda3-3.7.3-Linux-x86_64.sh \
-		-O miniconda.sh
-    chmod +x miniconda.sh && ./miniconda.sh -b
-    export PATH=$HOME/miniconda3/bin:$PATH
+	wget http://repo.continuum.io/archive/Anaconda3-4.0.0-Linux-x86_64.sh \
+		-O anaconda.sh
+    chmod +x anaconda.sh && ./anaconda.sh -b
+    export PATH=$HOME/anaconda3/bin:$PATH
 	conda config --set always_yes yes --set changeps1 no
 	conda update conda
 	conda info -a
@@ -32,8 +32,6 @@ fi
 if [[ "$COVERAGE" == "true" ]]; then
 	pip install coverage coveralls
 fi
-
-conda install libgfortran
 
 # Build pgmpy
 python setup.py develop
