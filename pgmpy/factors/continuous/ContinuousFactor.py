@@ -24,19 +24,19 @@ class ContinuousFactor(object):
         --------
         >>> import numpy as np
         >>> from scipy.special import beta
+        >>> from pgmpy.factors import ContinuousFactor
         # Two variable drichlet ditribution with alpha = (1,2)
         >>> def drichlet_pdf(x, y):
-        ...     return (np.power(x, 1)*np.power(y, 2))/beta(x, y)
-        >>> from pgmpy.factors import ContinuousFactor
-        >>> drichlet_factor = ContinuousFactor(['x', 'y'], drichlet_pdf)
-        >>> drichlet_factor.scope()
+        ...     return (np.power(x, 1) * np.power(y, 2)) / beta(x, y)
+        >>> dirichlet_factor = ContinuousFactor(['x', 'y'], drichlet_pdf)
+        >>> dirichlet_factor.scope()
         ['x', 'y']
-        >>> drichlet_factor.assignemnt(5,6)
+        >>> dirichlet_factor.assignemnt(5,6)
         226800.0
         """
         if not isinstance(variables, (list, tuple, np.ndarray)):
             raise TypeError("variables: Expected type list or array-like, "
-                             "got type {var_type}".format(var_type=type(variables)))
+                            "got type {var_type}".format(var_type=type(variables)))
 
         if len(set(variables)) != len(variables):
             raise ValueError("Variable names cannot be same.")
@@ -69,16 +69,16 @@ class ContinuousFactor(object):
 
         Parameters
         ----------
-        values: A list of arrays of dimension 1 x n
-            List of values whose assignment is to be computed.
+        *args: values
+            Values whose assignment is to be computed.
 
         Examples
         --------
         >>> from pgmpy.factors import ContinuousFactor
         >>> from scipy.stats import multivariate_normal
-        >>> normal_pdf = lambda x: multivariate_normal.pdf(x, [0, 0], [[1, 0], [0, 1]])
+        >>> normal_pdf = lambda x1, x2: multivariate_normal.pdf((x1, x2), [0, 0], [[1, 0], [0, 1]])
         >>> phi = ContinuousFactor(['x1', 'x2'], normal_pdf)
-        >>> phi.assignment([1,2])
+        >>> phi.assignment(1, 2)
         0.013064233284684921
         """
         return self.pdf(*args)
@@ -95,16 +95,16 @@ class ContinuousFactor(object):
         --------
         >>> import numpy as np
         >>> from scipy.special import beta
-        # Two variable drichlet ditribution with alpha = (1,2)
-        >>> def drichlet_pdf(x, y):
-        ...     return (np.power(x, 1)*np.power(y, 2))/beta(x, y)
         >>> from pgmpy.factors import ContinuousFactor
-        >>> drichlet_factor = ContinuousFactor(['x', 'y'], drichlet_pdf)
-        >>> drichlet_factor.variables
+        # Two variable drichlet ditribution with alpha = (1,2)
+        >>> def dirichlet_pdf(x, y):
+        ...     return (np.power(x, 1) * np.power(y, 2)) / beta(x, y)
+        >>> dirichlet_factor = ContinuousFactor(['x', 'y'], dirichlet_pdf)
+        >>> dirichlet_factor.variables
         ['x', 'y']
-        >>> copy_factor = drichlet_factor.copy()
-        copy_factor.variables
-
+        >>> copy_factor = dirichlet_factor.copy()
+        >>> copy_factor.variables
+        ['x', 'y']
         """
         return ContinuousFactor(self.scope(), self.pdf)
 
@@ -113,17 +113,29 @@ class ContinuousFactor(object):
         Discretizes the continuous distribution into discrete
         probability masses using various methods.
 
-        Returns
-        -------
-        An n-D array or a Factor object according to the discretiztion
-        method used.
-
         Parameters
         ----------
         method : A Discretizer Class from pgmpy.discretize
 
         *args, **kwargs:
             The parameters to be given to the Discretizer Class.
+
+        Returns
+        -------
+        An n-D array or a Factor object according to the discretiztion
+        method used.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from scipy.special import beta
+        >>> from pgmpy.factors import ContinuousFactor
+        >>> from pgmpy.discretize import RoundingDiscretizer
+        >>> def dirichlet_pdf(x, y):
+        ...     return (np.power(x, 1) * np.power(y, 2)) / beta(x, y)
+        >>> dirichlet_factor = ContinuousFactor(['x', 'y'], dirichlet_pdf)
+        >>> dirichlet_factor.discretize(RoundingDiscretizer, low=1, high=2, cardinality=5)
+        # TODO: finish this
         """
         return method(self, *args, **kwargs).get_discrete_values()
 
@@ -149,9 +161,9 @@ class ContinuousFactor(object):
         --------
         >>> import numpy as np
         >>> from scipy.special import beta
-        >>> def custom_pdf(x, y, z):
-        ...     return z*(np.power(x, 1)*np.power(y, 2))/beta(x, y)
         >>> from pgmpy.factors import ContinuousFactor
+        >>> def custom_pdf(x, y, z):
+        ...     return z*(np.power(x, 1) * np.power(y, 2)) / beta(x, y)
         >>> custom_factor = ContinuousFactor(['x', 'y', 'z'], custom_pdf)
         >>> custom_factor.variables
         ['x', 'y', 'z']
@@ -166,10 +178,11 @@ class ContinuousFactor(object):
         """
         if not isinstance(values, (list, tuple, np.ndarray)):
             raise TypeError("variables: Expected type list or array-like, "
-                             "got type {var_type}".format(var_type=type(values)))
+                            "got type {var_type}".format(var_type=type(values)))
 
-        if not all([var in self.variables for var,value in values]):
-            raise ValueError("Variable not in scope.")
+        for var, value in values:
+            if var not in self.variables:
+                raise ValueError("{var} not in scope.".format(var=var))
 
         phi = self if inplace else self.copy()
 
@@ -184,11 +197,11 @@ class ContinuousFactor(object):
             reduced_kwargs = kwargs.copy()
 
             if reduced_args:
-                for index, value in reduced_var_index:
-                    reduced_args.insert(index, value)
+                for index, val in reduced_var_index:
+                    reduced_args.insert(index, val)
             if reduced_kwargs:
-                for var, value in values:
-                    reduced_kwargs[var] = value
+                for variable, val in values:
+                    reduced_kwargs[variable] = val
             if reduced_args and reduced_kwargs:
                 reduced_args = [arg for arg in reduced_args if arg not in reduced_kwargs.values()]
 
@@ -236,7 +249,7 @@ class ContinuousFactor(object):
         """
         if not isinstance(variables, (list, tuple, np.ndarray)):
             raise TypeError("variables: Expected type list or array-like, "
-                             "got type {var_type}".format(var_type=type(variables)))
+                            "got type {var_type}".format(var_type=type(variables)))
 
         if not all([var in self.variables for var in variables]):
             raise ValueError("Variable not in scope.")
@@ -323,6 +336,10 @@ class ContinuousFactor(object):
             'product' for multiplication operation and 'divide' for
             division operation.
 
+        inplace: boolean
+            If inplace=True it will modify the factor itself, else would return
+            a new factor.
+
         Returns
         -------
         ContinuousFactor or None: 
@@ -355,7 +372,7 @@ class ContinuousFactor(object):
         if not isinstance(other, ContinuousFactor):
             raise TypeError("ContinuousFactor object can only be multiplied or divided with "
                             "an another ContinuousFactor object. Got {other_type}, expected "
-                             "ContinuousFactor.".format(other_type=type(other)))
+                            "ContinuousFactor.".format(other_type=type(other)))
 
         phi = self if inplace else self.copy()
         pdf = self.pdf
@@ -378,16 +395,22 @@ class ContinuousFactor(object):
         if not inplace:
             return phi
 
-    def __mul__(self, other):
+    def product(self, other):
         return self.operate(other, 'product', inplace=False)
+
+    def divide(self, other):
+        if set(other.variables) - set(self.variables):
+            raise ValueError("Scope of divisor should be a subset of dividend")
+
+        return self.operate(other, 'divide', inplace=False)
+
+    def __mul__(self, other):
+        return self.product(other)
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        if set(other.variables) - set(self.variables):
-            raise ValueError("Scope of divisor should be a subset of dividend")
-
-        return self.operate(other, 'divide', inplace=False)
+        return self.divide(other)
 
     __div__ = __truediv__
