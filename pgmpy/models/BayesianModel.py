@@ -21,13 +21,13 @@ class BayesianModel(DirectedGraph):
     """
     Base class for bayesian model.
 
-    A models stores nodes and edges with conditional probability
-    distribution (cpd) and other attributes.
+    A model stores nodes and edges along with the parameters associated with
+    it. Parameters can be an instance of any of `Factor` subclasses.
 
-    models hold directed edges.  Self loops are not allowed neither
-    multiple (parallel) edges.
+    Bayesian Models consists of directed edges.  Self loops and parallel edges
+    are note allowed in Bayesian Models.
 
-    Nodes should be strings.
+    Nodes can be any hashable python object.
 
     Edges are represented as links between nodes.
 
@@ -96,12 +96,13 @@ class BayesianModel(DirectedGraph):
         Add an edge between u and v.
 
         The nodes u and v will be automatically added if they are
-        not already in the graph
+        not already in the graph. Self loops and parallel edges are not
+        allowed in Bayesian Networks.
 
         Parameters
         ----------
-        u,v : nodes
-              Nodes can be any hashable python object.
+        u, v : nodes
+               Nodes can be any hashable python object.
 
         EXAMPLE
         -------
@@ -113,8 +114,8 @@ class BayesianModel(DirectedGraph):
         if u == v:
             raise ValueError('Self loops are not allowed.')
         if u in self.nodes() and v in self.nodes() and nx.has_path(self, v, u):
-            raise ValueError(
-                'Loops are not allowed. Adding the edge from (%s->%s) forms a loop.' % (u, v))
+            raise ValueError("Loops are not allowed. Adding the edge from "
+                             "{u} -> {v} forms a loop.".format(u=u, v=v))
         else:
             super(BayesianModel, self).add_edge(u, v, **kwargs)
 
