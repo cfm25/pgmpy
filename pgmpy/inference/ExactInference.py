@@ -10,8 +10,8 @@ from pgmpy.extern.six.moves import filter, range
 from pgmpy.extern.six import string_types
 from pgmpy.factors.discrete import factor_product
 from pgmpy.inference import Inference
-from pgmpy.factors.Factor import factor_product
 from pgmpy.models import JunctionTree, BayesianModel
+from pgmpy.utils import StateNameDecorator
 
 
 class VariableElimination(Inference):
