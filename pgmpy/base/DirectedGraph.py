@@ -9,11 +9,11 @@ from pgmpy.base import UndirectedGraph
 
 class DirectedGraph(nx.DiGraph):
     """
-    Base class for directed graphs.
+    Base class for all Directed Graphical Models.
 
-    Directed graph assumes that all the nodes in graph are either random
-    variables, factors or clusters of random variables and edges in the graph
-    are dependencies between these random variables.
+    Each node in the graph can represent either a random variable, `Factor`,
+    or a cluster of random variables. Edges in the graph represent the
+    dependencies between these.
 
     Parameters
     ----------
@@ -28,18 +28,18 @@ class DirectedGraph(nx.DiGraph):
     >>> from pgmpy.base import DirectedGraph
     >>> G = DirectedGraph()
 
-    G can be grown in several ways
+    G can be grown in several ways:
 
     **Nodes:**
 
     Add one node at a time:
 
-    >>> G.add_node('a')
+    >>> G.add_node(node='a')
 
     Add the nodes from any container (a list, set or tuple or the nodes
     from another graph).
 
-    >>> G.add_nodes_from(['a', 'b'])
+    >>> G.add_nodes_from(nodes=['a', 'b'])
 
     **Edges:**
 
@@ -47,14 +47,14 @@ class DirectedGraph(nx.DiGraph):
 
     Add one edge,
 
-    >>> G.add_edge('a', 'b')
+    >>> G.add_edge(u='a', v='b')
 
     a list of edges,
 
-    >>> G.add_edges_from([('a', 'b'), ('b', 'c')])
+    >>> G.add_edges_from(ebunch=[('a', 'b'), ('b', 'c')])
 
     If some edges connect nodes not yet in the model, the nodes
-    are added automatically.  There are no errors when adding
+    are added automatically. There are no errors when adding
     nodes or edges that already exist.
 
     **Shortcuts:**
@@ -70,68 +70,131 @@ class DirectedGraph(nx.DiGraph):
     def __init__(self, ebunch=None):
         super(DirectedGraph, self).__init__(ebunch)
 
-    def add_node(self, node, **kwargs):
+    def add_node(self, node, weight=None):
         """
-        Add a single node to the Graph.
+        Adds a single node to the Graph.
 
         Parameters
         ----------
-        node: node
-            A node can be any hashable Python object.
+        node: str, int, or any hashable python object.
+            The node to add to the graph.
+
+        weight: int, float
+            The weight of the node.
 
         Examples
         --------
         >>> from pgmpy.base import DirectedGraph
         >>> G = DirectedGraph()
-        >>> G.add_node('A')
-        """
-        super(DirectedGraph, self).add_node(node, **kwargs)
+        >>> G.add_node(node='A')
+        >>> G.nodes()
+        ['A']
 
-    def add_nodes_from(self, nodes, **kwargs):
+        Adding a node with some weight.
+        >>> G.add_node(node='B', weight=0.3)
+
+        The weight of these nodes can be accessed as:
+        >>> G.node['B']
+        {'weight': 0.3}
+        >>> G.node['A']
+        {'weight': None}
+        """
+        super(DirectedGraph, self).add_node(node, weight=weight)
+
+    def add_nodes_from(self, nodes, weights=None):
         """
         Add multiple nodes to the Graph.
+
+        **The behviour of adding weights is different than in networkx.
 
         Parameters
         ----------
         nodes: iterable container
-            A container of nodes (list, dict, set, etc.).
+            A container of nodes (list, dict, set, or any hashable python
+            object).
+
+        weights: list, tuple (default=None)
+            A container of weights (int, float). The weight value at index i
+            is associated with the variable at index i.
 
         Examples
         --------
         >>> from pgmpy.base import DirectedGraph
         >>> G = DirectedGraph()
-        >>> G.add_nodes_from(['A', 'B', 'C'])
-        """
-        for node in nodes:
-            self.add_node(node, **kwargs)
+        >>> G.add_nodes_from(nodes=['A', 'B', 'C'])
+        >>> G.nodes()
+        ['A', 'B', 'C']
 
-    def add_edge(self, u, v, **kwargs):
+        Adding nodes with weights:
+        >>> G.add_nodes_from(nodes=['D', 'E'], weights=[0.3, 0.6])
+        >>> G.node['D']
+        {'weight': 0.3}
+        >>> G.node['E']
+        {'weight': 0.6}
+        >>> G.node['A']
+        {'weight': None}
+        """
+        nodes = list(nodes)
+
+        if weights:
+            if len(nodes) != len(weights):
+                raise ValueError("The number of elements in nodes and weights"
+                                 "should be equal.")
+            for index in range(len(nodes)):
+                self.add_node(node=nodes[index], weight=weights[index])
+        else:
+            for node in nodes:
+                self.add_node(node=node)
+
+    def add_edge(self, u, v, weight=None):
         """
         Add an edge between u and v.
 
         The nodes u and v will be automatically added if they are
-        not already in the graph
+        not already in the graph.
 
         Parameters
         ----------
-        u,v : nodes
+        u, v : nodes
             Nodes can be any hashable Python object.
+
+        weight: int, float (default=None)
+            The weight of the edge
 
         Examples
         --------
         >>> from pgmpy.base import DirectedGraph
         >>> G = DirectedGraph()
-        >>> G.add_nodes_from(['Alice', 'Bob', 'Charles'])
-        >>> G.add_edge('Alice', 'Bob')
-        """
-        super(DirectedGraph, self).add_edge(u, v, **kwargs)
+        >>> G.add_nodes_from(nodes=['Alice', 'Bob', 'Charles'])
+        >>> G.add_edge(u='Alice', v='Bob')
+        >>> G.nodes()
+        ['Alice', 'Bob', 'Charles']
+        >>> G.edges()
+        [('Alice', 'Bob')]
 
-    def add_edges_from(self, ebunch, **kwargs):
+        When the node is not already present in the graph:
+        >>> G.add_edge(u='Alice', v='Ankur')
+        >>> G.nodes()
+        ['Alice', 'Ankur', 'Bob', 'Charles']
+        >>> G.edges()
+        [('Alice', 'Bob'), ('Alice', 'Ankur')]
+
+        Adding edges with weight:
+        >>> G.add_edge('Ankur', 'Maria', weight=0.1)
+        >>> G.edge['Ankur']['Maria']
+        {'weight': 0.1}
+        """
+        super(DirectedGraph, self).add_edge(u, v, weight=weight)
+
+    def add_edges_from(self, ebunch, weights=None):
         """
         Add all the edges in ebunch.
 
         If nodes referred in the ebunch are not already present, they
-        will be automatically added. Node names should be strings.
+        will be automatically added. Node names can be any hashable python
+        object.
+
+        **The behavior of adding weights is different than networkx.
 
         Parameters
         ----------
@@ -139,19 +202,54 @@ class DirectedGraph(nx.DiGraph):
             Each edge given in the container will be added to the graph.
             The edges must be given as 2-tuples (u, v).
 
+        weights: list, tuple (default=None)
+            A container of weights (int, float). The weight value at index i
+            is associated with the edge at index i.
+
         Examples
         --------
         >>> from pgmpy.base import DirectedGraph
         >>> G = DirectedGraph()
-        >>> G.add_nodes_from(['Alice', 'Bob', 'Charles'])
-        >>> G.add_edges_from([('Alice', 'Bob'), ('Bob', 'Charles')])
+        >>> G.add_nodes_from(nodes=['Alice', 'Bob', 'Charles'])
+        >>> G.add_edges_from(ebunch=[('Alice', 'Bob'), ('Bob', 'Charles')])
+        >>> G.nodes()
+        ['Alice', 'Bob', 'Charles']
+        >>> G.edges()
+        [('Alice', 'Bob'), ('Bob', 'Charles')]
+
+        When the node is not already in the model:
+        >>> G.add_edges_from(ebunch=[('Alice', 'Ankur')])
+        >>> G.nodes()
+        ['Alice', 'Bob', 'Charles', 'Ankur']
+        >>> G.edges()
+        [('Alice', 'Bob'), ('Bob', 'Charles'), ('Alice', 'Ankur')]
+
+        Adding edges with weights:
+        >>> G.add_edges_from([('Ankur', 'Maria'), ('Maria', 'Mason')],
+        ...                  weights=[0.3, 0.5])
+        >>> G.edge['Ankur']['Maria']
+        {'weight': 0.3}
+        >>> G.edge['Maria']['Mason']
+        {'weight': 0.5}
         """
-        for edge in ebunch:
-            self.add_edge(*edge, **kwargs)
+        ebunch = list(ebunch)
+
+        if weights:
+            if len(ebunch) != len(weights):
+                raise ValueError("The number of elements in ebunch and weights"
+                                 "should be equal")
+            for index in range(len(ebunch)):
+                self.add_edge(ebunch[index][0], ebunch[index][1],
+                              weight=weights[index])
+        else:
+            for edge in ebunch:
+                self.add_edge(edge[0], edge[1])
 
     def get_parents(self, node):
         """
         Returns a list of parents of node.
+
+        Throws an error if the node is not present in the graph.
 
         Parameters
         ----------
@@ -161,8 +259,8 @@ class DirectedGraph(nx.DiGraph):
         Examples
         --------
         >>> from pgmpy.base import DirectedGraph
-        >>> G = DirectedGraph([('diff', 'grade'), ('intel', 'grade')])
-        >>> G.parents('grade')
+        >>> G = DirectedGraph(ebunch=[('diff', 'grade'), ('intel', 'grade')])
+        >>> G.parents(node='grade')
         ['diff', 'intel']
         """
         return self.predecessors(node)
@@ -178,7 +276,7 @@ class DirectedGraph(nx.DiGraph):
         Examples
         --------
         >>> from pgmpy.base import DirectedGraph
-        >>> G = DirectedGraph([('diff', 'grade'), ('intel', 'grade')])
+        >>> G = DirectedGraph(ebunch=[('diff', 'grade'), ('intel', 'grade')])
         >>> moral_graph = G.moralize()
         >>> moral_graph.edges()
         [('intel', 'grade'), ('intel', 'diff'), ('grade', 'diff')]
@@ -186,7 +284,8 @@ class DirectedGraph(nx.DiGraph):
         moral_graph = UndirectedGraph(self.to_undirected().edges())
 
         for node in self.nodes():
-            moral_graph.add_edges_from(itertools.combinations(self.get_parents(node), 2))
+            moral_graph.add_edges_from(
+                itertools.combinations(self.get_parents(node), 2))
 
         return moral_graph
 

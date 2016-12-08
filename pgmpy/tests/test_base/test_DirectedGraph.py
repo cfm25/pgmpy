@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import unittest
+
 from pgmpy.base import DirectedGraph
 import pgmpy.tests.help_functions as hf
-import unittest
 
 
 class TestDirectedGraphCreation(unittest.TestCase):
@@ -32,6 +33,19 @@ class TestDirectedGraphCreation(unittest.TestCase):
     def test_add_nodes_from_non_string(self):
         self.graph.add_nodes_from([1, 2, 3, 4])
 
+    def test_add_node_weight(self):
+        self.graph.add_node('weighted_a', 0.3)
+        self.assertEqual(self.graph.node['weighted_a']['weight'], 0.3)
+
+    def test_add_nodes_from_weight(self):
+        self.graph.add_nodes_from(['weighted_b', 'weighted_c'], [0.5, 0.6])
+        self.assertEqual(self.graph.node['weighted_b']['weight'], 0.5)
+        self.assertEqual(self.graph.node['weighted_c']['weight'], 0.6)
+
+        self.graph.add_nodes_from(['e', 'f'])
+        self.assertEqual(self.graph.node['e']['weight'], None)
+        self.assertEqual(self.graph.node['f']['weight'], None)
+
     def test_add_edge_string(self):
         self.graph.add_edge('d', 'e')
         self.assertListEqual(sorted(self.graph.nodes()), ['d', 'e'])
@@ -60,6 +74,18 @@ class TestDirectedGraphCreation(unittest.TestCase):
     def test_add_edges_from_nonstring(self):
         self.graph.add_edges_from([(1, 2), (2, 3)])
 
+    def test_add_edge_weight(self):
+        self.graph.add_edge('a', 'b', weight=0.3)
+        self.assertEqual(self.graph.edge['a']['b']['weight'], 0.3)
+
+    def test_add_edges_from_weight(self):
+        self.graph.add_edges_from([('b', 'c'), ('c', 'd')], weights=[0.5, 0.6])
+        self.assertEqual(self.graph.edge['b']['c']['weight'], 0.5)
+        self.assertEqual(self.graph.edge['c']['d']['weight'], 0.6)
+
+        self.graph.add_edges_from([('e', 'f')])
+        self.assertEqual(self.graph.edge['e']['f']['weight'], None)
+
     def test_update_node_parents_bm_constructor(self):
         self.graph = DirectedGraph([('a', 'b'), ('b', 'c')])
         self.assertListEqual(self.graph.predecessors('a'), [])
@@ -80,14 +106,13 @@ class TestDirectedGraphCreation(unittest.TestCase):
 class TestDirectedGraphMoralization(unittest.TestCase):
     def setUp(self):
         self.graph = DirectedGraph()
+        self.graph.add_edges_from([('diff', 'grade'), ('intel', 'grade')])
 
     def test_get_parents(self):
-        self.graph.add_edges_from([('diff', 'grade'), ('intel', 'grade')])
         self.assertListEqual(sorted(self.graph.get_parents('grade')),
                              ['diff', 'intel'])
 
     def test_moralize(self):
-        self.graph.add_edges_from([('diff', 'grade'), ('intel', 'grade')])
         moral_graph = self.graph.moralize()
         self.assertListEqual(hf.recursive_sorted(moral_graph.edges()),
                              [['diff', 'grade'], ['diff', 'intel'],

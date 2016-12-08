@@ -10,10 +10,11 @@ import numpy as np
 import pandas as pd
 
 from pgmpy.base import DirectedGraph
-from pgmpy.factors import TabularCPD, JointProbabilityDistribution, Factor
+from pgmpy.factors.discrete import TabularCPD, JointProbabilityDistribution, DiscreteFactor
 from pgmpy.independencies import Independencies
 from pgmpy.extern import six
 from pgmpy.extern.six.moves import range, reduce
+from pgmpy.models.MarkovModel import MarkovModel
 
 
 class BayesianModel(DirectedGraph):
@@ -171,7 +172,7 @@ class BayesianModel(DirectedGraph):
         EXAMPLE
         -------
         >>> from pgmpy.models import BayesianModel
-        >>> from pgmpy.factors.CPD import TabularCPD
+        >>> from pgmpy.factors.discrete.CPD import TabularCPD
         >>> student = BayesianModel([('diff', 'grades'), ('intel', 'grades')])
         >>> grades_cpd = TabularCPD('grades', 3, [[0.1,0.1,0.1,0.1,0.1,0.1],
         ...                                       [0.1,0.1,0.1,0.1,0.1,0.1],
@@ -209,7 +210,8 @@ class BayesianModel(DirectedGraph):
 
     def get_cpds(self, node=None):
         """
-        Returns the cpds that have been added till now to the graph
+        Returns the cpd of the node. If node is not specified returns all the CPDs
+        that have been added till now to the graph
 
         Parameter
         ---------
@@ -217,10 +219,14 @@ class BayesianModel(DirectedGraph):
             The node whose CPD we want. If node not specified returns all the
             CPDs added to the model.
 
+        Returns
+        -------
+        A list of TabularCPDs.
+
         Examples
         --------
         >>> from pgmpy.models import BayesianModel
-        >>> from pgmpy.factors import TabularCPD
+        >>> from pgmpy.factors.discrete import TabularCPD
         >>> student = BayesianModel([('diff', 'grade'), ('intel', 'grade')])
         >>> cpd = TabularCPD('grade', 2, [[0.1, 0.9, 0.2, 0.7],
         ...                               [0.9, 0.1, 0.8, 0.3]],
@@ -234,6 +240,7 @@ class BayesianModel(DirectedGraph):
             for cpd in self.cpds:
                 if cpd.variable == node:
                     return cpd
+            raise ValueError("CPD not added for the node: {node}".format(node=node))
         else:
             return self.cpds
 
@@ -243,14 +250,14 @@ class BayesianModel(DirectedGraph):
 
         Parameters
         ----------
-        *cpds: TabularCPD, TreeCPD, RuleCPD object
+        *cpds: TabularCPD object
             A CPD object on any subset of the variables of the model which
             is to be associated with the model.
 
         Examples
         --------
         >>> from pgmpy.models import BayesianModel
-        >>> from pgmpy.factors import TabularCPD
+        >>> from pgmpy.factors.discrete import TabularCPD
         >>> student = BayesianModel([('diff', 'grade'), ('intel', 'grade')])
         >>> cpd = TabularCPD('grade', 2, [[0.1, 0.9, 0.2, 0.7],
         ...                               [0.9, 0.1, 0.8, 0.3]],
@@ -262,6 +269,21 @@ class BayesianModel(DirectedGraph):
             if isinstance(cpd, six.string_types):
                 cpd = self.get_cpds(cpd)
             self.cpds.remove(cpd)
+
+    def get_cardinality(self, node):
+        """
+        Returns the cardinality of the node. Throws an error if the CPD for the
+        queried node hasn't been added to the network.
+
+        Parameters
+        ----------
+        node: Any hashable python object.
+
+        Returns
+        -------
+        int: The cardinality of the node.
+        """
+        return self.get_cpds(node).cardinality[0]
 
     def check_model(self):
         """
@@ -278,6 +300,7 @@ class BayesianModel(DirectedGraph):
         """
         for node in self.nodes():
             cpd = self.get_cpds(node=node)
+
             if isinstance(cpd, TabularCPD):
                 evidence = cpd.variables[:0:-1]
                 parents = self.get_parents(node)
@@ -337,7 +360,6 @@ class BayesianModel(DirectedGraph):
 
         Examples
         --------
-
         >>> from pgmpy.models import BayesianModel
         >>> student = BayesianModel()
         >>> student.add_nodes_from(['diff', 'intel', 'grades'])
@@ -427,7 +449,6 @@ class BayesianModel(DirectedGraph):
                 descendents.extend(neighbors)
             return descendents
 
-        from pgmpy.independencies import Independencies
         independencies = Independencies()
         for variable in [variables] if isinstance(variables, str) else variables:
             non_descendents = set(self.nodes()) - {variable} - set(dfs(variable))
@@ -522,7 +543,6 @@ class BayesianModel(DirectedGraph):
         [('diff', 'intel'), ('diff', 'grade'), ('intel', 'grade'),
         ('intel', 'SAT'), ('grade', 'letter')]
         """
-        from pgmpy.models import MarkovModel
         moral_graph = self.moralize()
         mm = MarkovModel(moral_graph.edges())
         mm.add_factors(*[cpd.to_factor() for cpd in self.cpds])
@@ -544,7 +564,7 @@ class BayesianModel(DirectedGraph):
         Examples
         --------
         >>> from pgmpy.models import BayesianModel
-        >>> from pgmpy.factors import TabularCPD
+        >>> from pgmpy.factors.discrete import TabularCPD
         >>> G = BayesianModel([('diff', 'grade'), ('intel', 'grade'),
         ...                    ('intel', 'SAT'), ('grade', 'letter')])
         >>> diff_cpd = TabularCPD('diff', 2, [[0.2], [0.8]])
@@ -569,47 +589,60 @@ class BayesianModel(DirectedGraph):
         mm = self.to_markov_model()
         return mm.to_junction_tree()
 
-    def fit(self, data, estimator_type=None):
+    def fit(self, data, estimator_type=None, state_names=[], complete_samples_only=True, **kwargs):
         """
-        Computes the CPD for each node from a given data in the form of a pandas dataframe.
+        Estimates the CPD for each variable based on a given data set.
 
         Parameters
         ----------
-        data : pandas DataFrame object
-            A DataFrame object with column names same as the variable names of network
+        data: pandas DataFrame object
+            DataFrame object with column names identical to the variable names of the network.
+            (If some values in the data are missing the data cells should be set to `numpy.NaN`.
+            Note that pandas converts each column containing `numpy.NaN`s to dtype `float`.)
 
         estimator: Estimator class
-            Any pgmpy estimator. If nothing is specified, the default Maximum Likelihood
-            estimator would be used
+            One of:
+            - MaximumLikelihoodEstimator (default)
+            - BayesianEstimator: In this case, pass 'prior_type' and either 'pseudo_counts'
+                or 'equivalent_sample_size' as additional keyword arguments.
+                See `BayesianEstimator.get_parameters()` for usage.
+
+        state_names: dict (optional)
+            A dict indicating, for each variable, the discrete set of states
+            that the variable can take. If unspecified, the observed values
+            in the data set are taken to be the only possible states.
+
+        complete_samples_only: bool (default `True`)
+            Specifies how to deal with missing data, if present. If set to `True` all rows
+            that contain `np.Nan` somewhere are ignored. If `False` then, for each variable,
+            every row where neither the variable nor its parents are `np.NaN` is used.
 
         Examples
         --------
-        >>> import numpy as np
         >>> import pandas as pd
         >>> from pgmpy.models import BayesianModel
-        >>> values = pd.DataFrame(np.random.randint(low=0, high=2, size=(1000, 5)),
-        ...                       columns=['A', 'B', 'C', 'D', 'E'])
-        >>> model = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
-        >>> model.fit(values)
+        >>> from pgmpy.estimators import MaximumLikelihoodEstimator
+        >>> data = pd.DataFrame(data={'A': [0, 0, 1], 'B': [0, 1, 0], 'C': [1, 1, 0]})
+        >>> model = BayesianModel([('A', 'C'), ('B', 'C')])
+        >>> model.fit(data)
         >>> model.get_cpds()
-        [<pgmpy.factors.CPD.TabularCPD at 0x7fd173b2e588>,
-         <pgmpy.factors.CPD.TabularCPD at 0x7fd173cb5e10>,
-         <pgmpy.factors.CPD.TabularCPD at 0x7fd173b2e470>,
-         <pgmpy.factors.CPD.TabularCPD at 0x7fd173b2e198>,
-         <pgmpy.factors.CPD.TabularCPD at 0x7fd173b2e2e8>]
+        [<TabularCPD representing P(A:2) at 0x7fb98a7d50f0>,
+        <TabularCPD representing P(B:2) at 0x7fb98a7d5588>,
+        <TabularCPD representing P(C:2 | A:2, B:2) at 0x7fb98a7b1f98>]
         """
 
-        from pgmpy.estimators import MaximumLikelihoodEstimator, BaseEstimator
+        from pgmpy.estimators import MaximumLikelihoodEstimator, BayesianEstimator, BaseEstimator
 
         if estimator_type is None:
             estimator_type = MaximumLikelihoodEstimator
         else:
-            if not isinstance(estimator_type, BaseEstimator):
+            if not issubclass(estimator_type, BaseEstimator):
                 raise TypeError("Estimator object should be a valid pgmpy estimator.")
 
-        estimator = estimator_type(self, data)
+        estimator = estimator_type(self, data, state_names=state_names,
+                                   complete_samples_only=complete_samples_only)
 
-        cpds_list = estimator.get_parameters()
+        cpds_list = estimator.get_parameters(**kwargs)
         self.add_cpds(*cpds_list)
 
     def predict(self, data):
@@ -743,8 +776,8 @@ class BayesianModel(DirectedGraph):
         Examples
         --------
         >>> from pgmpy.models import BayesianModel
-        >>> from pgmpy.factors import TabularCPD
-        >>> from pgmpy.factors import JointProbabilityDistribution
+        >>> from pgmpy.factors.discrete import TabularCPD
+        >>> from pgmpy.factors.discrete import JointProbabilityDistribution
         >>> G = BayesianModel([('diff', 'grade'), ('intel', 'grade')])
         >>> diff_cpd = TabularCPD('diff', 2, [[0.2], [0.8]])
         >>> intel_cpd = TabularCPD('intel', 3, [[0.5], [0.3], [0.2]])
@@ -765,7 +798,7 @@ class BayesianModel(DirectedGraph):
             raise TypeError("JPD must be an instance of JointProbabilityDistribution")
         factors = [cpd.to_factor() for cpd in self.get_cpds()]
         factor_prod = reduce(mul, factors)
-        JPD_fact = Factor(JPD.variables, JPD.cardinality, JPD.values)
+        JPD_fact = DiscreteFactor(JPD.variables, JPD.cardinality, JPD.values)
         if JPD_fact == factor_prod:
             return True
         else:

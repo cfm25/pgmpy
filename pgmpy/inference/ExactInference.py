@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-import itertools
 import copy
 from collections import defaultdict
+import itertools
 
-import numpy as np
 import networkx as nx
+import numpy as np
 
 from pgmpy.extern.six.moves import filter, range
+from pgmpy.extern.six import string_types
+from pgmpy.factors.discrete import factor_product
 from pgmpy.inference import Inference
 from pgmpy.factors.Factor import factor_product
 from pgmpy.models import JunctionTree, BayesianModel
@@ -112,25 +114,6 @@ class VariableElimination(Inference):
             del self.working_factors[evidence_var]
 
     def _variable_elimination(self, variable, operation, evidence=None, elimination_order=None):
-        """
-        Implementation of a generalized variable elimination.
-
-        Parameters
-        ----------
-        variables: variable name (can be any hashable python object)
-            Variable that is not to be eliminated.
-
-        operation: str ('marginalize' | 'maximize')
-            The operation to do for eliminating the variable.
-
-        evidence: list, array-like
-            list of tuples of the form (var_name, state).
-            None if no evidence
-
-        elimination_order: list, array-like
-            list of variables representing the order in which they
-            are to be eliminated. If None order is computed automatically.
-        """
         self.variables = variable
         self.operation = operation
         self.evidence_vars = [evi[0] for evi in evidence] if evidence else []
@@ -142,6 +125,10 @@ class VariableElimination(Inference):
 
         if isinstance(self.working_model, BayesianModel) and operation == "marginalize":
             self.working_model, self.working_factors = self._optimize_bayesian_elimination(variable, self.evidence_vars)
+        if isinstance(variables, string_types):
+            raise TypeError("variables must be a list of strings")
+        if isinstance(evidence, string_types):
+            raise TypeError("evidence must be a list of strings")
 
         # Dealing with the case when variables is not provided.
         if not variable:
@@ -273,6 +260,7 @@ class VariableElimination(Inference):
             final_distribution = final_distribution.values()
         return np.max(factor_product(*final_distribution).values)
 
+    @StateNameDecorator(argument=None, return_val=True)
     def map_query(self, variables=None, evidence=None, elimination_order=None):
         """
         Computes the MAP Query over the variables given the evidence.
@@ -423,9 +411,8 @@ class BeliefPropagation(Inference):
     model: BayesianModel, MarkovModel, FactorGraph, JunctionTree
         model for which inference is to performed
     """
-    def __init__(self, model):
-        from pgmpy.models import JunctionTree
 
+    def __init__(self, model):
         super(BeliefPropagation, self).__init__(model)
 
         if not isinstance(model, JunctionTree):
@@ -570,7 +557,7 @@ class BeliefPropagation(Inference):
         Examples
         --------
         >>> from pgmpy.models import BayesianModel
-        >>> from pgmpy.factors import TabularCPD
+        >>> from pgmpy.factors.discrete import TabularCPD
         >>> from pgmpy.inference import BeliefPropagation
         >>> G = BayesianModel([('diff', 'grade'), ('intel', 'grade'),
         ...                    ('intel', 'SAT'), ('grade', 'letter')])
@@ -603,7 +590,7 @@ class BeliefPropagation(Inference):
         Examples
         --------
         >>> from pgmpy.models import BayesianModel
-        >>> from pgmpy.factors import TabularCPD
+        >>> from pgmpy.factors.discrete import TabularCPD
         >>> from pgmpy.inference import BeliefPropagation
         >>> G = BayesianModel([('diff', 'grade'), ('intel', 'grade'),
         ...                    ('intel', 'SAT'), ('grade', 'letter')])
@@ -661,6 +648,7 @@ class BeliefPropagation(Inference):
         Algorithm 10.4 Out-of-clique inference in clique tree
         Probabilistic Graphical Models: Principles and Techniques Daphne Koller and Nir Friedman.
         """
+
         is_calibrated = self._is_converged(operation=operation)
         # Calibrate the junction tree if not calibrated
         if not is_calibrated:
@@ -738,7 +726,7 @@ class BeliefPropagation(Inference):
 
         Examples
         --------
-        >>> from pgmpy.factors import TabularCPD
+        >>> from pgmpy.factors.discrete import TabularCPD
         >>> from pgmpy.models import BayesianModel
         >>> from pgmpy.inference import BeliefPropagation
         >>> bayesian_model = BayesianModel([('A', 'J'), ('R', 'J'), ('J', 'Q'),
@@ -778,7 +766,7 @@ class BeliefPropagation(Inference):
 
         Examples
         --------
-        >>> from pgmpy.factors import TabularCPD
+        >>> from pgmpy.factors.discrete import TabularCPD
         >>> from pgmpy.models import BayesianModel
         >>> from pgmpy.inference import BeliefPropagation
         >>> bayesian_model = BayesianModel([('A', 'J'), ('R', 'J'), ('J', 'Q'),

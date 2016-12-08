@@ -1,14 +1,16 @@
 pgmpy
 =====
 [![Build Status](https://travis-ci.org/pgmpy/pgmpy.svg?style=flat)](https://travis-ci.org/pgmpy/pgmpy)
+[![Appveyor](https://ci.appveyor.com/api/projects/status/github/pgmpy/pgmpy?branch=dev)](https://www.appveyor.com/)
 [![Coverage Status](https://coveralls.io/repos/pgmpy/pgmpy/badge.svg?branch=dev)](https://coveralls.io/r/pgmpy/pgmpy?branch=dev)
 [![Code Health](https://landscape.io/github/pgmpy/pgmpy/dev/landscape.svg?style=flat)](https://landscape.io/github/pgmpy/pgmpy/dev)
-[![PyPI](https://img.shields.io/pypi/dd/pgmpy.svg)]()
 [![Join the chat at https://gitter.im/pgmpy/pgmpy](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/pgmpy/pgmpy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-pgmpy is a python library for working with Probabilistic Graphical Models.
+pgmpy is a python library for working with Probabilistic Graphical Models.  
 
-Documentation  and list of algorithms we support is at our official site http://pgmpy.org/
+Documentation  and list of algorithms supported is at our official site http://pgmpy.org/  
+Examples on using pgmpy: https://github.com/pgmpy/pgmpy/tree/dev/examples  
+Basic tutorial on Probabilistic Graphical models using pgmpy: https://github.com/pgmpy/pgmpy_notebook  
 
 Our mailing list is at https://groups.google.com/forum/#!forum/pgmpy .
 
@@ -53,7 +55,7 @@ $ conda install --file requirements.txt  # or requirements-dev.txt
 Then install using:
 
 ```bash
-sudo python3 setup.py install
+sudo python setup.py install
 ```
 
 If you face any problems during installation let us know, via issues, mail or at our gitter channel.
@@ -113,10 +115,9 @@ Then the docs will be in _build/html
 Example:
 ========
 Here is a small snippet of pgmpy API
-```
-python3
+```python
 >>> from pgmpy.models import BayesianModel
->>> from pgmpy.factors import TabularCPD
+>>> from pgmpy.factors.discrete import TabularCPD
 >>> student = BayesianModel()
 >>> # instantiates a new Bayesian Model called 'student'
 

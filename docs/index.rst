@@ -1,79 +1,55 @@
 .. pgmpy documentation master file, created by
-   sphinx-quickstart on Tue Mar  4 08:26:10 2014.
+   sphinx-quickstart on Tue Aug 30 18:17:42 2016.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. image:: images/logo.png
-   :height: 220 px
-   :width: 220 px
-   :scale: 70 %
-   :align: center
+Welcome to pgmpy's documentation!
+=================================
 
-pgmpy
-=====
+Getting Started:
 
-``pgmpy`` is a Python library for creation, manipulation and implementation of 
-Probablistic Graphical Models (PGM).
+.. toctree::
+   :maxdepth: 3
 
-* Uses SciPy stack and NetworkX for mathematical and graph operations respectively.
-* Provides interface to existing PGM algorithms.
+   Installation
 
-.. raw:: html
+Basic Examples:
 
-   <div class="container-fluid">
-   <div class="row">
-   <div class="col-md-4">
-   <h2>Getting Started</h2>
-   </div>
-   <div class="col-md-4">
-   <h2>Documentation</h2>
-   </div>
-   <div class="col-md-4">
-   <h2>Wiki</h2>
-   </div>
-   </div>
-   <div class="row">
-   <div class="col-md-4">
+.. toctree::
+   :maxdepth: 3
+
+   Monte Hall Problem <https://github.com/pgmpy/pgmpy/blob/dev/examples/Monte%20Hall%20Problem.ipynb>
+   Creating a Bayesian Network in pgmpy <https://github.com/pgmpy/pgmpy/blob/dev/examples/Creating%20a%20Bayesian%20Network.ipynb>
+   Inference in Bayesian Network using Asia model <https://github.com/pgmpy/pgmpy/blob/dev/examples/Inference%20in%20Bayesian%20Networks.ipynb>
+   Learning from Data <https://github.com/pgmpy/pgmpy/blob/dev/examples/Learning%20from%20data.ipynb>
+
+Notebooks:
 
 .. toctree::
    :maxdepth: 2
 
-   install
+   Introduction to Probabilistic Graphical Models <https://nbviewer.jupyter.org/github/pgmpy/pgmpy_notebook/blob/master/notebooks/1.%20Introduction%20to%20Probabilistic%20Graphical%20Models.ipynb>
+   Bayesian Networks <https://github.com/pgmpy/pgmpy_notebook/blob/master/notebooks/2.%20Bayesian%20Networks.ipynb>
+   Markov Models <https://github.com/pgmpy/pgmpy_notebook/blob/master/notebooks/3.%20Markov%20Models.ipynb>
+   Exact Inference in Graphical Models <https://github.com/pgmpy/pgmpy_notebook/blob/master/notebooks/3.%20Markov%20Models.ipynb>
+   Approximate Inference in Graphical Models <https://github.com/pgmpy/pgmpy_notebook/blob/master/notebooks/5.%20Approximate%20Inference%20in%20Graphical%20Models.ipynb>
+   Parameterizing with continuous variables <https://github.com/pgmpy/pgmpy_notebook/blob/master/notebooks/6.%20Parameterizing%20with%20Continuous%20Variables.ipynb>
+   Sampling Algorithms <https://github.com/pgmpy/pgmpy_notebook/blob/master/notebooks/7.%20Sampling%20Algorithms.ipynb>
+   Learning Bayesian Networks from data <https://github.com/pgmpy/pgmpy_notebook/blob/master/notebooks/Learning%20Bayesian%20Networks%20from%20Data.ipynb>
+   Reading and writing files using pgmpy <https://github.com/pgmpy/pgmpy_notebook/blob/master/notebooks/8.%20Reading%20and%20Writing%20from%20pgmpy%20file%20formats.ipynb>
 
-.. raw:: html
-
-   </div>
-   <div class="col-md-4">
-
-.. toctree::
-   :maxdepth: 2
-
-   api
-   examples/index
-
-.. raw:: html
-
-   </div>
-   <div class="col-md-4">
+Documentation:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
-   wiki
-
-.. raw:: html
-
-   </div>
-   </div>
-   </div>
-
-Community
-=========
-
-.. hlist::
-
-   * **Mailing List**: pgmpy@googlegroups.com
-   * **IRC**: #pgmpy @ freenode.net
+   models
+   factors
+   sampling
+   inference
+   readwrite
+   estimators
+   contributing
 
 Indices and tables
 ==================

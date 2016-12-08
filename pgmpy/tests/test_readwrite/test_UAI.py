@@ -3,7 +3,7 @@ import unittest
 
 from pgmpy.readwrite import UAIReader, UAIWriter
 from pgmpy.models import BayesianModel, MarkovModel
-from pgmpy.factors import TabularCPD, Factor
+from pgmpy.factors.discrete import TabularCPD, DiscreteFactor
 from pgmpy.extern.six.moves import map
 
 
@@ -55,12 +55,13 @@ class TestUAIReader(unittest.TestCase):
 
     def test_get_model(self):
         model = self.reader_string.get_model()
-        edge_expected = {'var_2': {'var_0': {},
-                                   'var_1': {}},
-                         'var_0': {'var_2': {},
-                                   'var_1': {}},
-                         'var_1': {'var_2': {},
-                                   'var_0': {}}}
+        edge_expected = {
+            'var_2': {'var_0': {'weight': None},
+                      'var_1': {'weight': None}},
+            'var_0': {'var_2': {'weight': None},
+                      'var_1': {'weight': None}},
+            'var_1': {'var_2': {'weight': None},
+                      'var_0': {'weight': None}}}
         self.assertListEqual(sorted(model.nodes()), sorted(['var_0', 'var_2', 'var_1']))
         self.assertDictEqual(model.edge, edge_expected)
 
@@ -126,7 +127,7 @@ class TestUAIWriter(unittest.TestCase):
             variables = table[0]
             cardinality = [int(domain[var]) for var in variables]
             values = list(map(float, table[1]))
-            factor = Factor(variables, cardinality, values)
+            factor = DiscreteFactor(variables, cardinality, values)
             factors.append(factor)
         self.markovmodel.add_factors(*factors)
         self.markovwriter = UAIWriter(self.markovmodel)

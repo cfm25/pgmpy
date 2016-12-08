@@ -5,14 +5,15 @@ import pandas as pd
 import numpy as np
 import numpy.testing as np_test
 
-from pgmpy.models import BayesianModel
+from pgmpy.models import BayesianModel, MarkovModel
 import pgmpy.tests.help_functions as hf
-from pgmpy.factors import TabularCPD, JointProbabilityDistribution, Factor
+from pgmpy.factors.discrete import TabularCPD, JointProbabilityDistribution, DiscreteFactor
 from pgmpy.independencies import Independencies
-from pgmpy.extern import six
+from pgmpy.estimators import BayesianEstimator, BaseEstimator, MaximumLikelihoodEstimator
 
 
 class TestBaseModelCreation(unittest.TestCase):
+
     def setUp(self):
         self.G = BayesianModel()
 
@@ -103,6 +104,7 @@ class TestBaseModelCreation(unittest.TestCase):
 
 
 class TestBayesianModelMethods(unittest.TestCase):
+
     def setUp(self):
         self.G = BayesianModel([('a', 'd'), ('b', 'd'),
                                 ('d', 'e'), ('b', 'c')])
@@ -150,7 +152,7 @@ class TestBayesianModelMethods(unittest.TestCase):
         val = [0.01, 0.01, 0.08, 0.006, 0.006, 0.048, 0.004, 0.004, 0.032,
                0.04, 0.04, 0.32, 0.024, 0.024, 0.192, 0.016, 0.016, 0.128]
         JPD = JointProbabilityDistribution(['diff', 'intel', 'grade'], [2, 3, 3], val)
-        fac = Factor(['diff', 'intel', 'grade'], [2, 3, 3], val)
+        fac = DiscreteFactor(['diff', 'intel', 'grade'], [2, 3, 3], val)
         self.assertTrue(self.G1.is_imap(JPD))
         self.assertRaises(TypeError, self.G1.is_imap, fac)
 
@@ -163,7 +165,6 @@ class TestBayesianModelMethods(unittest.TestCase):
         self.assertEqual(G2.get_immoralities(), {('w', 'z')})
 
     def test_is_iequivalent(self):
-        from pgmpy.models import MarkovModel
         G = BayesianModel([('x', 'y'), ('z', 'y'), ('x', 'z'), ('w', 'y')])
         self.assertRaises(TypeError, G.is_iequivalent, MarkovModel())
         G1 = BayesianModel([('V', 'W'), ('W', 'X'), ('X', 'Y'), ('Z', 'Y')])
@@ -178,6 +179,7 @@ class TestBayesianModelMethods(unittest.TestCase):
 
 
 class TestBayesianModelCPD(unittest.TestCase):
+
     def setUp(self):
         self.G = BayesianModel([('d', 'g'), ('i', 'g'), ('g', 'l'),
                                 ('i', 's')])
@@ -236,9 +238,13 @@ class TestBayesianModelCPD(unittest.TestCase):
         self.model.add_cpds(cpd_a, cpd_ab)
         self.assertEqual(self.model.get_cpds('A').variable, 'A')
         self.assertEqual(self.model.get_cpds('AB').variable, 'AB')
+        self.assertRaises(ValueError, self.model.get_cpds, 'B')
+
+        self.model.add_node('B')
+        self.assertRaises(ValueError, self.model.get_cpds, 'B')
 
     def test_add_single_cpd(self):
-        cpd_s = TabularCPD('s', 2, np.random.rand(2, 2), ['i'], 2)
+        cpd_s = TabularCPD('s', 2, np.random.rand(2, 2), ['i'], [2])
         self.G.add_cpds(cpd_s)
         self.assertListEqual(self.G.get_cpds(), [cpd_s])
 
@@ -273,6 +279,12 @@ class TestBayesianModelCPD(unittest.TestCase):
                            evidence=['g'], evidence_card=[2])
 
         self.G.add_cpds(cpd_g, cpd_s, cpd_l)
+        self.assertRaises(ValueError, self.G.check_model)
+
+        cpd_d = TabularCPD('d', 2, values=[[0.8, 0.2]])
+        cpd_i = TabularCPD('i', 2, values=[[0.7, 0.3]])
+        self.G.add_cpds(cpd_d, cpd_i)
+
         self.assertTrue(self.G.check_model())
 
     def test_check_model1(self):
@@ -321,7 +333,7 @@ class TestBayesianModelCPD(unittest.TestCase):
     def test_check_model2(self):
         cpd_s = TabularCPD('s', 2, values=np.array([[0.5, 0.3],
                                                     [0.8, 0.7]]),
-                           evidence=['i'], evidence_card=2)
+                           evidence=['i'], evidence_card=[2])
         self.G.add_cpds(cpd_s)
         self.assertRaises(ValueError, self.G.check_model)
         self.G.remove_cpds(cpd_s)
@@ -345,11 +357,32 @@ class TestBayesianModelCPD(unittest.TestCase):
 
 
 class TestBayesianModelFitPredict(unittest.TestCase):
+
     def setUp(self):
         self.model_disconnected = BayesianModel()
         self.model_disconnected.add_nodes_from(['A', 'B', 'C', 'D', 'E'])
-
         self.model_connected = BayesianModel([('A', 'B'), ('C', 'B'), ('C', 'D'), ('B', 'E')])
+
+        self.model2 = BayesianModel([('A', 'C'), ('B', 'C')])
+        self.data1 = pd.DataFrame(data={'A': [0, 0, 1], 'B': [0, 1, 0], 'C': [1, 1, 0]})
+        self.data2 = pd.DataFrame(data={'A': [0, np.NaN, 1],
+                                        'B': [0, 1, 0],
+                                        'C': [1, 1, np.NaN],
+                                        'D': [np.NaN, 'Y', np.NaN]})
+
+    def test_bayesian_fit(self):
+        print(isinstance(BayesianEstimator, BaseEstimator))
+        print(isinstance(MaximumLikelihoodEstimator, BaseEstimator))
+        self.model2.fit(self.data1, estimator_type=BayesianEstimator, prior_type="dirichlet", pseudo_counts=[9, 3])
+        self.assertEqual(self.model2.get_cpds('B'), TabularCPD('B', 2, [[11.0 / 15], [4.0 / 15]]))
+
+    def test_fit_missing_data(self):
+        self.model2.fit(self.data2, state_names={'C': [0, 1]}, complete_samples_only=False)
+        cpds = set([TabularCPD('A', 2, [[0.5], [0.5]]),
+                    TabularCPD('B', 2, [[2. / 3], [1. / 3]]),
+                    TabularCPD('C', 2, [[0, 0.5, 0.5, 0.5], [1, 0.5, 0.5, 0.5]],
+                               evidence=['A', 'B'], evidence_card=[2, 2])])
+        self.assertSetEqual(cpds, set(self.model2.get_cpds()))
 
     def test_disconnected_fit(self):
         values = pd.DataFrame(np.random.randint(low=0, high=2, size=(1000, 5)),
@@ -398,6 +431,7 @@ class TestBayesianModelFitPredict(unittest.TestCase):
 
 
 class TestDirectedGraphCPDOperations(unittest.TestCase):
+
     def setUp(self):
         self.graph = BayesianModel()
 
