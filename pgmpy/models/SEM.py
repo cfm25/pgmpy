@@ -960,7 +960,7 @@ class SEMLISREL:
         self.B_fixed_mask = B
         self.zeta_fixed_mask = zeta
 
-    def generate_samples(self, n_samples=100):
+    def generate_samples(self, n_samples=100, cov=True):
         """
         Generates random samples from the model.
 
@@ -998,7 +998,13 @@ class SEMLISREL:
             cov=implied_cov,
             size=n_samples,
         )
-        return pd.DataFrame(samples, columns=observed)
+
+        df_samples = pd.DataFrame(samples, columns=observed)
+
+        if cov:
+            return df_samples, implied_cov
+        else:
+            return df_samples
 
 
 class SEM(SEMGraph):
