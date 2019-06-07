@@ -70,7 +70,13 @@ class VariableElimination(Inference):
             - set(evidence.keys() if evidence else [])
         )
 
-        # Step 1: If elimination_order is a list, verify it's correct and return.
+        # Step 1: Prune the network by removing independent variables.
+        if isinstance(self.model, BayesianModel):
+            independent_vars = self.model.active_trail_nodes(variables=variables,
+                                                             observed=list(evidence.keys()))
+            to_eliminate -= set().union(*independent_vars.values())
+
+        # Step 2: If elimination_order is a list, verify it's correct and return.
         if hasattr(elimination_order, "__iter__") and (
             not isinstance(elimination_order, str)
         ):
@@ -87,11 +93,11 @@ class VariableElimination(Inference):
             else:
                 return elimination_order
 
-        # Step 2: If elimination order is None or a Markov model, return a random order.
+        # Step 3: If elimination order is None or a Markov model, return a random order.
         elif (elimination_order is None) or (not isinstance(self.model, BayesianModel)):
             return to_eliminate
 
-        # Step 3: If elimination order is a str, compute the order using the specified heuristic.
+        # Step 4: If elimination order is a str, compute the order using the specified heuristic.
         elif isinstance(elimination_order, str) and isinstance(
             self.model, BayesianModel
         ):
