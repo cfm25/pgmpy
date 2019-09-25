@@ -10,7 +10,7 @@ from pgmpy.independencies import Independencies, IndependenceAssertion
 
 
 class ConstraintBasedEstimator(StructureEstimator):
-    def __init__(self, data, **kwargs):
+    def __init__(self, data, data_type='discrete', **kwargs):
         """
         Class for constraint-based estimation of DAGs from a given
         data set. Identifies (conditional) dependencies in data set using
@@ -24,6 +24,13 @@ class ConstraintBasedEstimator(StructureEstimator):
             datafame object where each column represents one variable.
             (If some values in the data are missing the data cells should be set to `numpy.NaN`.
             Note that pandas converts each column containing `numpy.NaN`s to dtype `float`.)
+
+        data_type: discrete | continuous (default: discrete)
+            Specify whether the data type is discrete or continuous.
+
+        independence_test: str (optional)
+            The independence test to use to check conditional independencies in the data.
+            Check pgmpy/estimators/CITests.py for a list of supported independence tests. 
 
         state_names: dict (optional)
             A dict indicating, for each variable, the discrete set of states (or values)
