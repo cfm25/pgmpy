@@ -22,6 +22,10 @@ jobs:
         run: |
           conda --version
           which python
+      - name: Lint
+        run: |
+          conda install black
+          black --check .
       - name: Install dependencies
         run: |
           conda install -c pytorch pytorch --yes
