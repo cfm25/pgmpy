@@ -27,4 +27,4 @@ jobs:
           conda install -c pytorch pytorch --yes
           conda install --file requirements-dev.txt --yes
       - name: Run tests
-        run: nosetests --exclude='test_MmhcEstimator\.py' . -v
+        run: nosetests --exclude='test_MmhcEstimator\.py' --exclude='test_continuous_sampling\.py' . -v
