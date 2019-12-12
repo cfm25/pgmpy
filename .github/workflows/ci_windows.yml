@@ -1,4 +1,4 @@
-name: pgmpy
+name: Run tests on Windows
 on: [push]
 jobs:
   build:
@@ -8,7 +8,7 @@ jobs:
       max-parallel: 6
       matrix:
         python-version: [3.6, 3.7]
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [windows-latest]
 
     steps:
       - uses: actions/checkout@v1
@@ -26,6 +26,5 @@ jobs:
         run: |
           conda install -c pytorch pytorch --yes
           conda install --file requirements-dev.txt --yes
-          pip install nose-exclude
       - name: Run tests
         run: nosetests --exclude='test_MmhcEstimator\.py' --exclude='test_continuous_sampling\.py' . -v
